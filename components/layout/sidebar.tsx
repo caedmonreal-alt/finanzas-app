@@ -7,6 +7,7 @@ import { NAV_SECTIONS, sectionFor } from "./nav-items";
 import { NavIcon } from "./nav-icon";
 import { ThemeToggle } from "./theme-toggle";
 import { QuickAddButton } from "@/components/quick-add/quick-add-button";
+import { Search } from "lucide-react";
 
 export function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
@@ -17,8 +18,9 @@ export function Sidebar({ email }: { email: string }) {
         <div className="h-7 w-7 rounded-lg bg-accent text-white grid place-items-center text-sm">$</div>
         Finanzas
       </div>
-      <div className="px-1 pb-3">
+      <div className="px-1 pb-3 space-y-2">
         <QuickAddButton className="w-full" label="Registrar" />
+        <Link href="/buscar" className={cn("flex h-10 items-center gap-2 rounded-xl bg-card-2 px-3 text-[14px] font-medium text-muted-foreground hover:bg-card-2/70", pathname === "/buscar" && "text-accent")}><Search className="h-4 w-4" /> Buscar</Link>
       </div>
       <nav className="flex flex-col gap-1">
         {NAV_SECTIONS.map((s) => {

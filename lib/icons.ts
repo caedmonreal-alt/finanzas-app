@@ -1,5 +1,5 @@
 /** Auto icon for a movement when the user didn't assign one (by concept keywords, then by type). */
-const RULES: [RegExp, string][] = [
+export const RULES: [RegExp, string][] = [
   [/gasolina|diesel|di[eé]sel|combustible|pemex/i, "⛽"],
   [/caseta|peaje|autopista/i, "🛣️"],
   [/uber|didi|taxi|estacionamiento/i, "🚕"],
@@ -45,4 +45,17 @@ export function iconFor(note: string | null | undefined, movementType?: string |
   const n = note ?? "";
   for (const [re, ic] of RULES) if (re.test(n)) return ic;
   return BY_TYPE[movementType ?? "gasto"] ?? "•";
+}
+
+/** Keywords behind an emoji (for search by emoji). */
+export function keywordsForEmoji(emoji: string): string[] {
+  const out: string[] = [];
+  RULES.filter(([, ic]) => ic === emoji).forEach(([re]) => {
+    re.source.split("|").forEach((part) => {
+      const w = part.replace(/\\b|\[.*?\]|[()\\^$?*+.]/g, "").replace(/\s+/g, " ").trim();
+      if (w.length >= 3) out.push(w);
+    });
+  });
+  const byType: Record<string, string[]> = { "👜": ["caja chica"], "👷🏻": ["nómina", "pago"], "🤝": ["préstamo"], "💵": ["ministración"], "🐂": ["ganado", "becerro"], "💼": ["mi pago", "honorarios"], "⇄": ["transferencia"], "⚖️": ["ajuste"] };
+  return Array.from(new Set([...out, ...(byType[emoji] ?? [])]));
 }
