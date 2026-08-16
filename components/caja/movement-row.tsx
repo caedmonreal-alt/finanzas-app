@@ -4,6 +4,7 @@ import { useQuickAdd } from "@/components/quick-add/quick-add-context";
 import { cn, formatMXN } from "@/lib/utils";
 import { MOVEMENT_TYPE_LABEL, type MovementType } from "@/lib/types";
 import type { LedgerRow } from "@/lib/queries-caja";
+import { iconFor } from "@/lib/icons";
 
 /** One ledger line: amount · concept · project tag / type / person · running balance. Click = edit. */
 export function MovementRow({ row, running, showProject = true, showDate = false }: { row: LedgerRow; running?: number; showProject?: boolean; showDate?: boolean }) {
@@ -32,9 +33,10 @@ export function MovementRow({ row, running, showProject = true, showDate = false
           is_recurring: row.is_recurring,
         })
       }
-      className="-mx-2 grid w-[calc(100%+16px)] grid-cols-[104px_1fr_auto] items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-card-2/70 sm:grid-cols-[112px_1fr_auto_96px]"
+      className="-mx-2 grid w-[calc(100%+16px)] grid-cols-[32px_88px_1fr] items-center gap-2 rounded-xl px-2 py-2 text-left transition-colors hover:bg-card-2/70 sm:grid-cols-[36px_112px_1fr_96px] sm:gap-3"
     >
-      <span className={cn("text-right text-[15px] font-semibold tabular", isIn && !isTransfer && "text-positive")}>
+      <span className="grid h-8 w-8 place-items-center rounded-lg bg-card-2 text-[15px] sm:h-9 sm:w-9">{iconFor(row.note, row.movement_type, row.category?.icon, row.is_fee)}</span>
+      <span className={cn("text-right text-[14px] font-semibold tabular sm:text-[15px]", isIn && !isTransfer && "text-positive")}>
         {isIn && !isTransfer ? "+" : ""}
         {formatMXN(row.amount)}
       </span>
@@ -52,8 +54,7 @@ export function MovementRow({ row, running, showProject = true, showDate = false
           {row.account && row.account.type !== "cash" && <span>· {row.account.name}</span>}
         </span>
       </span>
-      <span />
-      {running !== undefined && <span className="hidden text-right text-[12.5px] text-muted-foreground tabular sm:block">{formatMXN(running)}</span>}
+      {running !== undefined ? <span className="hidden text-right text-[12.5px] text-muted-foreground tabular sm:block">{formatMXN(running)}</span> : <span className="hidden sm:block" />}
     </button>
   );
 }

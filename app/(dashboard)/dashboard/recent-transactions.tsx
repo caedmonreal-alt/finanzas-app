@@ -5,6 +5,7 @@ import { dayLabel } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import type { TransactionRow } from "@/lib/queries";
 import type { MovementType } from "@/lib/types";
+import { iconFor } from "@/lib/icons";
 
 export function RecentTransactions({ transactions }: { transactions: TransactionRow[] }) {
   const { openEdit, openNew } = useQuickAdd();
@@ -28,7 +29,7 @@ export function RecentTransactions({ transactions }: { transactions: Transaction
               onClick={() => openEdit({ id: t.id, amount: t.amount, account_id: t.account_id, category_id: t.category_id, date: t.date, note: t.note, is_recurring: t.is_recurring, project_id: t.project_id, person_id: t.person_id, person_name: t.person?.name ?? null, movement_type: t.movement_type as MovementType })}
               className="-mx-1 grid w-full grid-cols-[36px_1fr_auto] items-center gap-3 rounded-xl px-1 py-2 text-left hover:bg-card-2/60"
             >
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-card-2 text-[15px]">{t.category?.icon ?? (positive ? "＋" : "•")}</span>
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-card-2 text-[15px]">{iconFor(t.note, t.movement_type, t.category?.icon)}</span>
               <span className="min-w-0">
                 <span className="block truncate text-[14px] font-medium">{t.note || t.category?.name || "Movimiento"}</span>
                 <span className="block truncate text-[12px] text-muted-foreground">{t.category?.name ?? "Sin categoría"} · {t.account?.name ?? "—"} · {dayLabel(t.date)}</span>

@@ -48,7 +48,7 @@ export default async function ProyectoPage({ params }: { params: { id: string } 
         subtitle={`${project.kind === "obra" ? PROJECT_STATUS_LABEL[project.status] : PROJECT_KIND_LABEL[project.kind]}${project.client_name ? ` · ${project.client_name}` : ""}`}
       >
         <Link href="/proyectos" className="text-[14px] font-medium text-accent hover:underline">← Proyectos</Link>
-        <PdfButton href={`/api/reportes/proyecto?id=${project.id}`} />
+        <PdfButton href={`/api/reportes/proyecto?id=${project.id}`} title={`Obra ${project.name}`} back={`/proyectos/${project.id}`} />
         <ProjectForm project={project} clients={clients} />
       </PageHeader>
 

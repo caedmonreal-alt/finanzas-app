@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountBalances, getMonthTotals, monthStart, getTransactionsForMonth, getBudgetsForMonth, getCategoryTotalsForMonth, getCategories } from "@/lib/queries";
 import { monthKey, monthRange, todayISO } from "@/lib/dates";
+import { getClientBalances, getUncoveredDrawsTotal } from "@/lib/queries-caja";
 import { cn, formatMXN } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { KpiCard } from "@/components/kpi-card";
@@ -20,22 +21,27 @@ export default async function DashboardPage() {
   const { data: profile } = await supabase.from("profiles").select("display_name").eq("id", user!.id).maybeSingle();
 
   const key = monthKey();
-  const [balances, totals, txs, budgets, catTotals, categories] = await Promise.all([
+  const [balances, totals, txs, budgets, catTotals, categories, clientBalances, uncovered] = await Promise.all([
     getAccountBalances(),
     getMonthTotals(2),
     getTransactionsForMonth(key),
     getBudgetsForMonth(key),
     getCategoryTotalsForMonth(key),
     getCategories(),
+    getClientBalances(),
+    getUncoveredDrawsTotal(),
   ]);
+  // Money in the cash box that belongs to clients is not personal net worth
+  const clientFunds = clientBalances.reduce((s, b) => s + (b.received - b.applied - b.petty_pending - b.loans_out), 0);
 
   const now = new Date();
   const thisMonth = totals.find((t) => t.month === monthStart(now)) ?? { income: 0, expense: 0, net: 0 };
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonth = totals.find((t) => t.month === monthStart(prev));
 
-  const netWorth = balances.reduce((s, b) => s + b.balance, 0);
-  const liquid = balances.filter((b) => b.type === "cash" || b.type === "debit").reduce((s, b) => s + b.balance, 0);
+  const rawNet = balances.reduce((s, b) => s + b.balance, 0);
+  const netWorth = rawNet - clientFunds + uncovered;
+  const liquid = balances.filter((b) => b.type === "cash" || b.type === "debit").reduce((s, b) => s + b.balance, 0) - clientFunds + uncovered;
   const invested = balances.filter((b) => b.type === "investment").reduce((s, b) => s + b.balance, 0);
   const debt = balances.filter((b) => b.type === "credit" || b.type === "debt").reduce((s, b) => s + b.balance, 0);
   const rate = thisMonth.income ? ((thisMonth.income - thisMonth.expense) / thisMonth.income) * 100 : 0;
@@ -54,8 +60,9 @@ export default async function DashboardPage() {
     .slice(0, 6);
 
   const delta = (a: number, b: number | undefined, invert = false) => {
-    if (!b) return undefined;
+    if (!b || b < 500) return undefined; // no comparison against an empty / tiny previous month
     const p = ((a - b) / Math.abs(b)) * 100;
+    if (Math.abs(p) > 500) return undefined;
     const good = invert ? p <= 0 : p >= 0;
     return { text: `${p >= 0 ? "+" : ""}${p.toFixed(0)} % vs. mes anterior`, tone: Math.abs(p) < 0.5 ? "flat" : good ? "up" : "down" } as const;
   };
@@ -67,7 +74,7 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader title={`Hola${name ? `, ${name}` : ""}`} subtitle={today.charAt(0).toUpperCase() + today.slice(1)}>
-        <QuickAddButton />
+        <QuickAddButton label="Registrar" />
       </PageHeader>
 
       {empty && (
@@ -91,7 +98,7 @@ export default async function DashboardPage() {
           hero
           label="Patrimonio neto"
           value={formatMXN(netWorth)}
-          foot={`Líquido ${formatMXN(liquid)} · Inversiones ${formatMXN(invested)} · Deudas ${formatMXN(debt)}`}
+          foot={`Líquido ${formatMXN(liquid)} · Inversiones ${formatMXN(invested)} · Deudas ${formatMXN(debt)}${clientFunds ? ` · sin contar ${formatMXN(clientFunds)} de fondos de clientes` : ""}`}
         />
         <KpiCard label="Ingresos del mes" value={formatMXN(thisMonth.income)} delta={delta(thisMonth.income, prevMonth?.income)} />
         <KpiCard

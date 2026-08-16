@@ -8,6 +8,7 @@ import { dayLabel } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import type { Category, MovementType } from "@/lib/types";
 import type { AccountBalance, TransactionRow } from "@/lib/queries";
+import { iconFor } from "@/lib/icons";
 
 interface Props {
   transactions: TransactionRow[];
@@ -131,7 +132,7 @@ export function TransactionsList({ transactions, categories, accounts, isCurrent
                           className="grid w-full grid-cols-[40px_1fr_auto] items-center gap-3 py-2.5 text-left transition-colors hover:bg-card-2/60 rounded-xl px-1 -mx-1"
                         >
                           <span className="grid h-10 w-10 place-items-center rounded-xl bg-card-2 text-[17px]">
-                            {isTransfer ? "⇄" : t.category?.icon ?? (positive ? "＋" : "•")}
+                            {isTransfer ? "⇄" : iconFor(t.note, t.movement_type, t.category?.icon)}
                           </span>
                           <span className="min-w-0">
                             <span className="block truncate text-[14.5px] font-medium">{t.note || t.category?.name || (isTransfer ? "Transferencia" : "Movimiento")}</span>

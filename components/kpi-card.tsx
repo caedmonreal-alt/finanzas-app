@@ -12,9 +12,9 @@ interface KpiCardProps {
 
 export function KpiCard({ label, value, delta, foot, hero, className }: KpiCardProps) {
   return (
-    <Card className={cn("px-6 py-5", hero && "sm:col-span-2", className)}>
+    <Card className={cn("px-4 py-4 sm:px-6 sm:py-5", hero && "col-span-2", className)}>
       <div className="text-[13px] font-medium text-muted-foreground">{label}</div>
-      <div className={cn("mt-2 font-bold tracking-tight leading-none tabular", hero ? "text-[40px] lg:text-[44px]" : "text-[28px]")}>
+      <div className={cn("mt-2 font-bold tracking-tight leading-none tabular", hero ? "text-[30px] sm:text-[36px] lg:text-[44px]" : "text-[22px] sm:text-[26px] lg:text-[28px]")}>
         {value}
       </div>
       {delta && (

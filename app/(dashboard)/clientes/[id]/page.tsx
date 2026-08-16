@@ -41,7 +41,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
     <>
       <PageHeader title={client.name} subtitle={`${mine.length} obras · ${ministraciones.length} ministraciones`}>
         <Link href="/proyectos" className="text-[14px] font-medium text-accent hover:underline">← Proyectos</Link>
-        <PdfButton href={`/api/reportes/cliente?id=${client.id}`} label="Estado de cuenta PDF" />
+        <PdfButton href={`/api/reportes/cliente?id=${client.id}`} label="Estado de cuenta PDF" title={`Estado de cuenta ${client.name}`} back={`/clientes/${client.id}`} />
         <ClientForm clients={clients} client={client} />
       </PageHeader>
 

@@ -89,7 +89,7 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
         <Suspense>
           <MonthPicker value={key} />
         </Suspense>
-        <PdfButton href={`/api/reportes/caja?mes=${key}`} />
+        <PdfButton href={`/api/reportes/caja?mes=${key}`} title={`Caja ${monthLabel(key)}`} back={`/caja?mes=${key}`} />
         <QuickAddButton className="hidden sm:flex" label="Registrar" />
       </PageHeader>
 
@@ -97,7 +97,7 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card className="col-span-2 px-6 py-5">
           <div className="text-[13px] font-medium text-muted-foreground">Efectivo en caja (teórico)</div>
-          <div className="mt-2 text-[40px] font-bold leading-none tracking-tight tabular lg:text-[44px]">{formatMXN(closing)}</div>
+          <div className="mt-2 text-[32px] font-bold leading-none tracking-tight tabular sm:text-[38px] lg:text-[44px]">{formatMXN(closing)}</div>
           <div className="mt-3 text-[12.5px] text-muted-foreground">
             Inicio {formatMXN(opening)} + entradas {formatMXN(tIn)} − salidas {formatMXN(tOut)}
             {lastCount && (
@@ -245,7 +245,7 @@ function Kpi({ label, value, foot, href }: { label: string; value: string; foot?
   const inner = (
     <>
       <div className="text-[13px] font-medium text-muted-foreground">{label}</div>
-      <div className="mt-2 text-[26px] font-bold leading-none tracking-tight tabular">{value}</div>
+      <div className="mt-2 text-[22px] font-bold leading-none tracking-tight tabular sm:text-[26px]">{value}</div>
       {foot && <div className="mt-2 text-[12.5px] text-muted-foreground">{foot}</div>}
     </>
   );
