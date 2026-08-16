@@ -6,6 +6,7 @@ export interface AccountBalance {
   type: "cash" | "debit" | "credit" | "investment" | "debt";
   currency: string;
   credit_limit: number | null;
+  opening_balance: number;
   balance: number;
 }
 
@@ -25,7 +26,12 @@ export async function getAccountBalances(): Promise<AccountBalance[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("account_balances").select("*").order("name");
   if (error) throw error;
-  return (data ?? []).map((r) => ({ ...r, balance: Number(r.balance), credit_limit: r.credit_limit === null ? null : Number(r.credit_limit) }));
+  return (data ?? []).map((r) => ({
+    ...r,
+    balance: Number(r.balance),
+    opening_balance: Number(r.opening_balance),
+    credit_limit: r.credit_limit === null ? null : Number(r.credit_limit),
+  }));
 }
 
 export async function getMonthTotals(months = 13): Promise<MonthTotal[]> {

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { getAccountBalances } from "@/lib/queries";
-import { formatMXN, cn } from "@/lib/utils";
-import { ACCOUNT_TYPE_LABEL } from "@/lib/types";
+import { formatMXN } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { AccountForm } from "./account-form";
+import { AccountRow } from "./account-row";
 
 export const metadata: Metadata = { title: "Cuentas" };
 export const dynamic = "force-dynamic";
@@ -36,16 +36,7 @@ export default async function CuentasPage() {
             ) : (
               <ul className="divide-y divide-border">
                 {balances.map((b) => (
-                  <li key={b.account_id} className="flex items-center justify-between py-3">
-                    <div>
-                      <div className="text-[14.5px] font-medium">{b.name}</div>
-                      <div className="text-[12.5px] text-muted-foreground">
-                        {ACCOUNT_TYPE_LABEL[b.type]}
-                        {b.credit_limit ? ` · límite ${formatMXN(b.credit_limit)}` : ""}
-                      </div>
-                    </div>
-                    <div className={cn("text-[14.5px] font-semibold tabular", b.balance < 0 && "text-danger")}>{formatMXN(b.balance)}</div>
-                  </li>
+                  <AccountRow key={b.account_id} account={b} />
                 ))}
               </ul>
             )}
