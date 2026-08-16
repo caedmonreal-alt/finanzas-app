@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import { createTransaction, updateTransaction, deleteTransaction, previewFeeSplit, createFeeSplit, deleteSplitGroup, getUncoveredPersonalDraws, type FeeBasis, type FeeSplitPreviewRow } from "@/lib/actions/transactions";
+import { createTransaction, updateTransaction, deleteTransaction, previewFeeSplit, createFeeSplit, createSharedExpenseSplit, deleteSplitGroup, getUncoveredPersonalDraws, type FeeBasis, type FeeSplitPreviewRow } from "@/lib/actions/transactions";
 import { todayISO } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,9 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
   const [personName, setPersonName] = useState("");
   const [clientId, setClientId] = useState<string | null>(null);
   const [feeMode, setFeeMode] = useState(false);
+  const [sharedMode, setSharedMode] = useState(false);
+  const [sharedPreview, setSharedPreview] = useState<FeeSplitPreviewRow[]>([]);
+  const sharedTouched = useRef(false);
   const [feeBasis, setFeeBasis] = useState<FeeBasis>("prev_month");
   const [feePreview, setFeePreview] = useState<FeeSplitPreviewRow[]>([]);
   const [loanFromClient, setLoanFromClient] = useState(false);
@@ -97,6 +100,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setClientId(edit.client_id ?? null);
       setLoanFromClient(!!edit.client_id && (edit.movement_type === "prestamo" || edit.movement_type === "cobro_prestamo"));
       setFeeMode(false);
+      setSharedMode(false);
       setCategoryId(edit.category_id);
       setAccountId(edit.account_id);
       setDate(edit.date);
@@ -111,6 +115,9 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setPersonName("");
       setClientId(clients[0]?.id ?? null);
       setFeeMode(false);
+      setSharedMode(false);
+      setSharedPreview([]);
+      sharedTouched.current = false;
       setFeePreview([]);
       setLoanFromClient(false);
       setCategoryId(null);
@@ -161,6 +168,23 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
     return () => clearTimeout(h);
   }, [feeMode, clientId, amount, feeBasis, date]);
 
+  // Shared expense (gasolina): auto-suggest and preview
+  useEffect(() => {
+    if (edit || dir !== "out" || sharedTouched.current) return;
+    setSharedMode(/gasolina|diesel|di[eé]sel|combustible/i.test(note));
+  }, [note, dir, edit]);
+  useEffect(() => {
+    if (!sharedMode) return setSharedPreview([]);
+    const value = Number(amount.replace(/[^0-9.]/g, ""));
+    if (!value) return setSharedPreview([]);
+    const h = setTimeout(async () => {
+      const res = await previewFeeSplit(null, value, "prev_month", date);
+      setSharedPreview(res.rows);
+      if (res.error) setError(res.error);
+    }, 250);
+    return () => clearTimeout(h);
+  }, [sharedMode, amount, date]);
+
   function submit() {
     const value = Number(amount.replace(/[^0-9.]/g, ""));
     if (!value || value <= 0) {
@@ -175,6 +199,17 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
         const res = await createFeeSplit({ client_id: clientId, amount: value, basis: feeBasis, date, account_id: accountId, note, deductPersonal });
         if (res.error) return setError(res.error);
         setToast(`Mi pago de ${formatMXN(value)} repartido en ${res.count} obras${res.withdrawn !== undefined && res.withdrawn !== value ? ` · retiras ${formatMXN(res.withdrawn)}` : ""}`);
+        setTimeout(() => setToast(null), 2600);
+        onClose();
+        router.refresh();
+      });
+      return;
+    }
+    if (sharedMode && dir === "out" && !edit) {
+      start(async () => {
+        const res = await createSharedExpenseSplit({ amount: value, basis: "prev_month", date, account_id: accountId, note });
+        if (res.error) return setError(res.error);
+        setToast(`${note || "Gasto"} de ${formatMXN(value)} repartido en ${res.count} obras`);
         setTimeout(() => setToast(null), 2600);
         onClose();
         router.refresh();
@@ -273,7 +308,18 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
               className="h-11 w-full rounded-xl border border-border bg-card-2 px-3 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-accent/50"
             />
 
-            {feeMode ? null : type === "ministracion" ? (
+            {dir === "out" && !edit && !feeMode && (
+              <label className={cn("mt-3 flex cursor-pointer items-start gap-2 rounded-2xl p-3 text-[13px]", sharedMode ? "bg-accent-soft" : "bg-card-2")}>
+                <input type="checkbox" checked={sharedMode} onChange={(e) => { sharedTouched.current = true; setSharedMode(e.target.checked); }} className="mt-0.5 accent-[#0A84FF]" />
+                <span>
+                  <b>Repartir entre todas las obras en ejecución</b> (gasolina, casetas y otros gastos compartidos). Proporcional al gasto del mes anterior de cada obra; partes iguales si no hay datos.
+                  {sharedMode && sharedPreview.length > 0 && (
+                    <span className="mt-1.5 block text-muted-foreground">{sharedPreview.map((r) => `${r.name} ${formatMXN(r.amount)}`).join(" · ")}</span>
+                  )}
+                </span>
+              </label>
+            )}
+            {sharedMode && !feeMode ? null : feeMode ? null : type === "ministracion" ? (
               <>
                 <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Cliente (fondo común)</div>
                 <div className="mt-1.5 flex flex-wrap gap-2">
@@ -312,8 +358,8 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
               </>
             )}
 
-            <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Tipo</div>
-            <div className="mt-1.5 flex flex-wrap gap-2">
+            {!sharedMode && <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Tipo</div>}
+            <div className={cn("mt-1.5 flex flex-wrap gap-2", sharedMode && "hidden")}>
               {typeDefs.map((t) => (
                 <button key={t.id} type="button" title={t.hint} onClick={() => { setType(t.id); setFeeMode(false); }} className={chip(type === t.id && !feeMode)}>
                   {t.label}

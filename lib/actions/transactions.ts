@@ -175,11 +175,13 @@ export interface FeeSplitPreviewRow {
 }
 
 /** Compute the split (no writes). basis month/year use spend on each obra (incl. proofs). */
-export async function previewFeeSplit(clientId: string, amount: number, basis: FeeBasis, date: string): Promise<{ rows: FeeSplitPreviewRow[]; error?: string }> {
+export async function previewFeeSplit(clientId: string | null, amount: number, basis: FeeBasis, date: string): Promise<{ rows: FeeSplitPreviewRow[]; error?: string }> {
   const supabase = createClient();
-  const { data: projects, error } = await supabase.from("projects").select("id, name").eq("client_id", clientId).eq("kind", "obra").eq("status", "ejecucion").eq("is_archived", false).order("sort_order");
+  let q = supabase.from("projects").select("id, name").eq("kind", "obra").eq("status", "ejecucion").eq("is_archived", false).order("sort_order");
+  if (clientId) q = q.eq("client_id", clientId);
+  const { data: projects, error } = await q;
   if (error) return { rows: [], error: error.message };
-  if (!projects?.length) return { rows: [], error: "El cliente no tiene obras en ejecución." };
+  if (!projects?.length) return { rows: [], error: clientId ? "El cliente no tiene obras en ejecución." : "No hay obras en ejecución." };
 
   let weights = new Map<string, number>();
   if (basis === "equal") {
@@ -302,4 +304,32 @@ export async function getUncoveredPersonalDraws(date: string): Promise<{ total: 
     return acc?.type === "cash";
   });
   return { total: rows.reduce((s, r) => s - Number(r.amount), 0), count: rows.length, ids: rows.map((r) => r.id) };
+}
+
+/** Shared expense (e.g. gasolina) split across ALL obras in ejecución, any client. One line per obra, linked by split_group. */
+export async function createSharedExpenseSplit(input: { amount: number; basis: FeeBasis; date: string; account_id: string; note: string; person_name?: string | null }): Promise<{ error?: string; count?: number }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión expirada." };
+  if (!input.amount || input.amount <= 0) return { error: "Escribe un monto." };
+  const preview = await previewFeeSplit(null, input.amount, input.basis, input.date);
+  if (preview.error) return { error: preview.error };
+  const group = crypto.randomUUID();
+  const label = input.note.trim() || "Gasto compartido";
+  const rows = preview.rows.filter((r) => r.amount > 0).map((r) => ({
+    user_id: user.id,
+    account_id: input.account_id,
+    project_id: r.project_id,
+    movement_type: "gasto",
+    split_group: group,
+    amount: -r.amount,
+    date: input.date,
+    note: `${label} · parte proporcional (${(r.weight * 100).toFixed(0)} %)`,
+  }));
+  const { error } = await supabase.from("transactions").insert(rows);
+  if (error) return { error: error.message };
+  revalidateAll();
+  return { count: rows.length };
 }

@@ -2,14 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createTransactionsBulk, type TransactionInput } from "@/lib/actions/transactions";
+import { createTransactionsBulk, createSharedExpenseSplit, type TransactionInput } from "@/lib/actions/transactions";
 import { monthKey } from "@/lib/dates";
 import { formatMXN } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { MOVEMENT_TYPES, type MovementType, type Project, type Person, type Client } from "@/lib/types";
 
-interface ParsedRow { key: number; day: number; amount: number; concept: string; project_id: string; movement_type: MovementType; person: string; include: boolean }
+interface ParsedRow { key: number; day: number; amount: number; concept: string; project_id: string; movement_type: MovementType; person: string; include: boolean; shared: boolean }
 
 const MONTHS: Record<string, number> = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
 const PERSONAL_KW = /gasolina|comida|desayuno|cena|costco|walmart|tintorer|skincare|caseta|camioneta|pastel|revelaci|birria|c[oó]mputo|ropa|farmacia|doctor|cine|restaurante|s[uú]per|uber|netflix|spotify|luz|agua|internet|tel(?:cel|mex)/i;
@@ -104,19 +104,21 @@ export function Importer({ projects, people, accounts, clients }: { projects: Pr
         if (!amount) { skipped++; return; }
         const concept = m[2].trim();
         const g = guessType(concept, dir, people);
-        out.push({ key: out.length, day, amount, concept, project_id: guessProject(concept, active) || (g.type === "prestamo" ? "" : ""), movement_type: g.type, person: g.person, include: true });
+        const shared = dir === "out" && /gasolina|diesel|di[eé]sel|combustible/i.test(concept);
+        out.push({ key: out.length, day, amount, concept, project_id: shared ? "" : guessProject(concept, active), movement_type: g.type, person: g.person, include: true, shared });
       } else skipped++;
     });
     setMonth(mk);
     setRows(out);
     setInfo(`${out.length} movimientos reconocidos · ${formatMXN(out.reduce((s, r) => s + r.amount, 0))}${skipped ? ` · ${skipped} líneas ignoradas` : ""} · mes ${mk}`);
   }
-  function update(key: number, patch: Partial<ParsedRow>) { setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r))); }
+  function update(key: number, patch: Partial<ParsedRow>) { if (patch.project_id === "__shared") patch = { project_id: "", shared: true }; setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r))); }
   function doImport() {
     const sel = rows.filter((r) => r.include);
     if (!sel.length) return;
     if (!accountId) return setError("Necesitas una cuenta de efectivo (Cuentas → tipo Efectivo).");
-    const inputs: TransactionInput[] = sel.map((r) => ({
+    const sharedRows = sel.filter((r) => r.shared);
+    const inputs: TransactionInput[] = sel.filter((r) => !r.shared).map((r) => ({
       kind: dir === "in" ? "income" : "expense",
       amount: r.amount,
       account_id: accountId,
@@ -129,10 +131,16 @@ export function Importer({ projects, people, accounts, clients }: { projects: Pr
       note: r.concept,
     }));
     start(async () => {
-      const res = await createTransactionsBulk(inputs);
+      const res = inputs.length ? await createTransactionsBulk(inputs) : { count: 0 };
       if (res.error) return setError(res.error);
+      let sharedCount = 0;
+      for (const r of sharedRows) {
+        const rs = await createSharedExpenseSplit({ amount: r.amount, basis: "prev_month", date: `${month}-${String(r.day).padStart(2, "0")}`, account_id: accountId, note: r.concept });
+        if (rs.error) return setError(`${rs.error} (${r.concept})`);
+        sharedCount++;
+      }
       setError(null);
-      setInfo(`Importados ${res.count} movimientos en ${month}. Ya aparecen en la Caja.`);
+      setInfo(`Importados ${res.count} movimientos${sharedCount ? ` + ${sharedCount} repartidos entre obras` : ""} en ${month}. Ya aparecen en la Caja.`);
       setRows([]); setText("");
       router.refresh();
     });
@@ -172,7 +180,7 @@ export function Importer({ projects, people, accounts, clients }: { projects: Pr
                           <td className="py-1.5 pr-2 tabular">{String(r.day).padStart(2, "0")}</td>
                           <td className="py-1.5 pr-2 text-right font-semibold tabular">{formatMXN(r.amount)}</td>
                           <td className="py-1.5 pr-2 max-w-[160px] truncate" title={r.concept}>{r.concept}</td>
-                          <td className="py-1.5 pr-2"><select value={r.project_id} onChange={(e) => update(r.key, { project_id: e.target.value })} className="h-8 max-w-[140px] rounded-lg border border-border bg-card-2 px-1.5 text-[12.5px]"><option value="">Sin proyecto</option>{active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
+                          <td className="py-1.5 pr-2">{r.shared ? <label className="flex items-center gap-1 text-[12px]"><input type="checkbox" checked={r.shared} onChange={(e) => update(r.key, { shared: e.target.checked })} className="accent-[#0A84FF]" />Repartir entre obras</label> : <select value={r.project_id} onChange={(e) => update(r.key, { project_id: e.target.value })} className="h-8 max-w-[140px] rounded-lg border border-border bg-card-2 px-1.5 text-[12.5px]"><option value="">Sin proyecto</option>{active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}<option value="__shared">Repartir entre obras</option></select>}</td>
                           <td className="py-1.5 pr-2"><select value={r.movement_type} onChange={(e) => update(r.key, { movement_type: e.target.value as MovementType })} className="h-8 rounded-lg border border-border bg-card-2 px-1.5 text-[12.5px]">{typeDefs.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></td>
                           <td className="py-1.5">{needsPerson ? <input value={r.person} onChange={(e) => update(r.key, { person: e.target.value })} list="imp-people" placeholder="¿quién?" className="h-8 w-[110px] rounded-lg border border-border bg-card-2 px-2 text-[12.5px]" /> : <span className="text-muted-foreground">—</span>}</td>
                         </tr>
