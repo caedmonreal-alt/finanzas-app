@@ -11,6 +11,7 @@ export interface LedgerRow {
   client_id: string | null;
   split_group: string | null;
   is_fee: boolean;
+  covered_by_fee: string | null;
   movement_type: MovementType;
   amount: number;
   date: string;
@@ -115,7 +116,7 @@ export async function getPersonBalances(): Promise<PersonBalance[]> {
 }
 
 const LEDGER_SELECT =
-  "id, account_id, category_id, project_id, person_id, client_id, split_group, is_fee, movement_type, amount, date, note, is_recurring, transfer_account_id, account:accounts!transactions_account_id_fkey(name, type), project:projects(name, kind, color), person:people(name), category:categories(name, icon)";
+  "id, account_id, category_id, project_id, person_id, client_id, split_group, is_fee, covered_by_fee, movement_type, amount, date, note, is_recurring, transfer_account_id, account:accounts!transactions_account_id_fkey(name, type), project:projects(name, kind, color), person:people(name), category:categories(name, icon)";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLedger(rows: any[]): LedgerRow[] {

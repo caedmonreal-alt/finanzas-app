@@ -15,8 +15,9 @@ interface Props {
 }
 
 export function CajaReport({ monthLabel, opening, rows, cashDelta, byProject, pending, clientsFunds }: Props) {
-  const tIn = rows.reduce((a, r) => a + Math.max(cashDelta(r), 0), 0);
-  const tOut = rows.reduce((a, r) => a + Math.max(-cashDelta(r), 0), 0);
+  const compensation = rows.filter((r) => !!r.split_group && r.amount > 0).reduce((a, r) => a + r.amount, 0);
+  const tIn = rows.reduce((a, r) => a + Math.max(cashDelta(r), 0), 0) - compensation;
+  const tOut = rows.reduce((a, r) => a + Math.max(-cashDelta(r), 0), 0) - compensation;
   const closing = opening + tIn - tOut;
   const days = new Map<string, LedgerRow[]>();
   rows.forEach((r) => { if (!days.has(r.date)) days.set(r.date, []); days.get(r.date)!.push(r); });
@@ -43,7 +44,7 @@ export function CajaReport({ monthLabel, opening, rows, cashDelta, byProject, pe
           {list.map((r) => {
             const d = cashDelta(r);
             running += d;
-            const label = r.is_fee ? "Mi pago" : r.split_group ? "Repartido" : r.movement_type !== "gasto" ? MOVEMENT_TYPE_LABEL[r.movement_type as MovementType] : "";
+            const label = r.is_fee ? "Mi pago" : r.split_group && r.amount > 0 ? "compensa adelantos ya tomados" : r.covered_by_fee ? "adelanto de mi pago" : r.split_group ? "Repartido" : r.movement_type !== "gasto" ? MOVEMENT_TYPE_LABEL[r.movement_type as MovementType] : "";
             return (
               <View key={r.id} style={s.row}>
                 <Text style={[s.cell, { width: 70 }, d > 0 ? s.green : {}]}>{d > 0 ? "+" : ""}{mxn(d)}</Text>

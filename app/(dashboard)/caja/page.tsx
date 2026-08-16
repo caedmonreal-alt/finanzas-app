@@ -43,8 +43,13 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
   const isCash = (r: (typeof rows)[number]) => r.account?.type === "cash";
   // Cash-affecting amount of each row (transfers to/from cash accounts count)
   const cashDelta = (r: (typeof rows)[number]) => (isCash(r) ? r.amount : r.transfer_account_id ? -r.amount : 0);
-  const tIn = rows.reduce((s, r) => s + Math.max(cashDelta(r), 0), 0);
-  const tOut = rows.reduce((s, r) => s + Math.max(-cashDelta(r), 0), 0);
+  // Fee compensations (split_group + positive) are not real inflows: they net against personal draws already taken.
+  const isCompensation = (r: (typeof rows)[number]) => !!r.split_group && r.amount > 0;
+  const tInGross = rows.reduce((s, r) => s + Math.max(cashDelta(r), 0), 0);
+  const tOutGross = rows.reduce((s, r) => s + Math.max(-cashDelta(r), 0), 0);
+  const compensation = rows.filter(isCompensation).reduce((s, r) => s + r.amount, 0);
+  const tIn = tInGross - compensation;
+  const tOut = tOutGross - compensation;
   const closing = opening + tIn - tOut;
 
   // by project (outflows)
@@ -52,6 +57,8 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
   rows.forEach((r) => {
     const d = cashDelta(r);
     if (d >= 0 || r.movement_type === "transferencia" || r.transfer_account_id) return;
+    // Personal draws already deducted from "Mi pago" are shown as part of the fee, not as Personal
+    if (r.covered_by_fee) return; // ya está incluido en las líneas "Mi pago" de las obras (compensado)
     const id = r.project_id ?? "none";
     const cur = byProject.get(id) ?? { name: r.project?.name ?? "Sin proyecto", color: r.project?.color ?? "#8E8E93", total: 0, count: 0 };
     cur.total += -d;
@@ -103,8 +110,8 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
             )}
           </div>
         </Card>
-        <Kpi label="Salidas del mes" value={formatMXN(tOut)} foot={`${rows.filter((r) => cashDelta(r) < 0).length} mov. · ${formatMXN(tOut / Math.max(daysElapsed, 1))} por día`} />
-        <Kpi label="Entradas del mes" value={formatMXN(tIn)} foot={`${rows.filter((r) => cashDelta(r) > 0).length} movimientos`} />
+        <Kpi label="Salidas del mes" value={formatMXN(tOut)} foot={`${rows.filter((r) => cashDelta(r) < 0).length} mov. · ${formatMXN(tOut / Math.max(daysElapsed, 1))} por día${compensation ? ` · netas de ${formatMXN(compensation)} de adelantos compensados` : ""}`} />
+        <Kpi label="Entradas del mes" value={formatMXN(tIn)} foot={`${rows.filter((r) => cashDelta(r) > 0 && !isCompensation(r)).length} movimientos${compensation ? " · sin contar compensaciones de mi pago" : ""}`} />
         <Kpi label="Por comprobar" value={formatMXN(totalPending)} foot={pending.length ? `${pending.length} persona${pending.length > 1 ? "s" : ""} con caja chica` : "Nada pendiente"} href="/personas" />
         <Kpi label="Préstamos por cobrar" value={formatMXN(totalLoans)} foot={loans.length ? `${loans.length} préstamo${loans.length > 1 ? "s" : ""} activos` : "Ninguno"} href="/prestamos" />
         <Kpi label="Gasto de obras" value={formatMXN(projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "obra").reduce((s, p) => s + p.total, 0))} foot="Salidas del mes en obras" href="/proyectos" />
@@ -138,8 +145,8 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
           <CardContent>
             <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
               <Tot label="Saldo inicial" value={formatMXN(opening)} />
-              <Tot label="Entradas" value={"+" + formatMXN(tIn)} cls="text-positive" />
-              <Tot label="Salidas" value={"−" + formatMXN(tOut)} cls="text-danger" />
+              <Tot label={compensation ? "Entradas (sin compensaciones)" : "Entradas"} value={"+" + formatMXN(tIn)} cls="text-positive" />
+              <Tot label={compensation ? "Salidas (netas)" : "Salidas"} value={"−" + formatMXN(tOut)} cls="text-danger" />
               <Tot label="Saldo final" value={formatMXN(closing)} />
             </div>
             {rows.length === 0 ? (

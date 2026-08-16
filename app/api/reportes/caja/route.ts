@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const byProject = new Map<string, { name: string; total: number; count: number; color: string }>();
   rows.forEach((r) => {
     const d = cashDelta(r);
-    if (d >= 0 || r.transfer_account_id) return;
+    if (d >= 0 || r.transfer_account_id || r.covered_by_fee) return;
     const id = r.project_id ?? "none";
     const cur = byProject.get(id) ?? { name: r.project?.name ?? "Sin proyecto", total: 0, count: 0, color: r.project_id ? colorOf(r.project_id) : "#8E8E93" };
     cur.total += -d; cur.count += 1; byProject.set(id, cur);
