@@ -12,8 +12,8 @@ import { ThemeToggle } from "./theme-toggle";
 
 // Mobile: Caja · Proyectos · (+) · Caja chica · Más
 const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1]];
-const RIGHT = [NAV_ITEMS[2]];
-const MORE = NAV_ITEMS.slice(3);
+const RIGHT = [NAV_ITEMS[3]];
+const MORE = NAV_ITEMS.filter((_, i) => ![0, 1, 3].includes(i));
 
 export function TabBar() {
   const pathname = usePathname();

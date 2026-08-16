@@ -1,6 +1,7 @@
 export const NAV_ITEMS = [
   { href: "/caja", label: "Caja del mes", short: "Caja", icon: "book" },
   { href: "/proyectos", label: "Proyectos", short: "Proyectos", icon: "hardhat" },
+  { href: "/resumen", label: "Resumen anual", short: "Resumen", icon: "calendar" },
   { href: "/personas", label: "Caja chica", short: "Caja chica", icon: "users" },
   { href: "/prestamos", label: "Préstamos", short: "Préstamos", icon: "handshake" },
   { href: "/arqueo", label: "Arqueo", short: "Arqueo", icon: "check" },

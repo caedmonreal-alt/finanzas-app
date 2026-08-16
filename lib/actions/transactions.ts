@@ -163,3 +163,93 @@ export async function createTransactionsBulk(rows: TransactionInput[]): Promise<
   revalidateAll();
   return { count: out.length };
 }
+
+/* ---------- "Mi pago repartido": prorated fee across a client's active obras ---------- */
+export type FeeBasis = "prev_month" | "month" | "year" | "equal";
+
+export interface FeeSplitPreviewRow {
+  project_id: string;
+  name: string;
+  weight: number;
+  amount: number;
+}
+
+/** Compute the split (no writes). basis month/year use spend on each obra (incl. proofs). */
+export async function previewFeeSplit(clientId: string, amount: number, basis: FeeBasis, date: string): Promise<{ rows: FeeSplitPreviewRow[]; error?: string }> {
+  const supabase = createClient();
+  const { data: projects, error } = await supabase.from("projects").select("id, name").eq("client_id", clientId).eq("kind", "obra").eq("status", "ejecucion").eq("is_archived", false).order("sort_order");
+  if (error) return { rows: [], error: error.message };
+  if (!projects?.length) return { rows: [], error: "El cliente no tiene obras en ejecución." };
+
+  let weights = new Map<string, number>();
+  if (basis === "equal") {
+    projects.forEach((p) => weights.set(p.id, 1));
+  } else {
+    const y = Number(date.slice(0, 4)), m = Number(date.slice(5, 7));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    let from: string, to: string;
+    if (basis === "year") { from = `${y}-01-01`; to = date; }
+    else if (basis === "month") { from = `${y}-${pad(m)}-01`; to = date; }
+    else { // prev_month: the whole previous month
+      const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+      from = `${py}-${pad(pm)}-01`; to = `${py}-${pad(pm)}-${new Date(py, pm, 0).getDate()}`;
+    }
+    const { data: rows } = await supabase.from("monthly_project_spend").select("project_id, spent").gte("month", from).lte("month", to);
+    (rows ?? []).forEach((r) => weights.set(r.project_id, (weights.get(r.project_id) ?? 0) + Number(r.spent)));
+    if (!Array.from(weights.values()).some((v) => v > 0)) {
+      // nothing spent yet in the period → fall back to equal parts
+      weights = new Map(projects.map((p) => [p.id, 1]));
+    }
+  }
+  const total = projects.reduce((s, p) => s + (weights.get(p.id) ?? 0), 0);
+  let assigned = 0;
+  const out: FeeSplitPreviewRow[] = projects.map((p, i) => {
+    const w = weights.get(p.id) ?? 0;
+    let a = total ? Math.round((amount * w) / total) : 0;
+    if (i === projects.length - 1) a = Math.round(amount - assigned); // last one absorbs rounding
+    assigned += a;
+    return { project_id: p.id, name: p.name, weight: total ? w / total : 0, amount: a };
+  });
+  return { rows: out.filter((r) => r.amount > 0 || r.weight > 0) };
+}
+
+/** Writes one transaction per obra, linked by split_group. */
+export async function createFeeSplit(input: { client_id: string; amount: number; basis: FeeBasis; date: string; account_id: string; note: string }): Promise<{ error?: string; count?: number }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión expirada." };
+  if (!input.amount || input.amount <= 0) return { error: "Escribe un monto." };
+  const preview = await previewFeeSplit(input.client_id, input.amount, input.basis, input.date);
+  if (preview.error) return { error: preview.error };
+  const group = crypto.randomUUID();
+  const label = input.note.trim() || "Mi pago";
+  const rows = preview.rows
+    .filter((r) => r.amount > 0)
+    .map((r) => ({
+      user_id: user.id,
+      account_id: input.account_id,
+      project_id: r.project_id,
+      client_id: null,
+      movement_type: "gasto",
+      is_fee: true,
+      split_group: group,
+      amount: -r.amount,
+      date: input.date,
+      note: `${label} · parte proporcional (${(r.weight * 100).toFixed(0)} %)`,
+    }));
+  const { error } = await supabase.from("transactions").insert(rows);
+  if (error) return { error: error.message };
+  revalidateAll();
+  return { count: rows.length };
+}
+
+/** Deletes every line of a prorated fee. */
+export async function deleteSplitGroup(group: string): Promise<Result> {
+  const supabase = createClient();
+  const { error } = await supabase.from("transactions").delete().eq("split_group", group);
+  if (error) return { error: error.message };
+  revalidateAll();
+  return { id: group };
+}

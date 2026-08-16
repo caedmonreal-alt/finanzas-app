@@ -10,7 +10,7 @@ export function MovementRow({ row, running, showProject = true, showDate = false
   const { openEdit } = useQuickAdd();
   const isIn = row.amount > 0;
   const isTransfer = !!row.transfer_account_id || row.movement_type === "transferencia";
-  const typeLabel = row.movement_type !== "gasto" ? MOVEMENT_TYPE_LABEL[row.movement_type as MovementType] : null;
+  const typeLabel = row.is_fee ? "Mi pago" : row.movement_type !== "gasto" ? MOVEMENT_TYPE_LABEL[row.movement_type as MovementType] : null;
   return (
     <button
       onClick={() =>
@@ -23,6 +23,8 @@ export function MovementRow({ row, running, showProject = true, showDate = false
           person_id: row.person_id,
           person_name: row.person?.name ?? null,
           client_id: row.client_id,
+          split_group: row.split_group,
+          is_fee: row.is_fee,
           movement_type: row.movement_type,
           date: row.date,
           note: row.note,

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getLoans, getPeople, getPersonBalances } from "@/lib/queries-caja";
+import { getLoans, getPeople, getPersonBalances, getClients, getClientBalances } from "@/lib/queries-caja";
 import { formatMXN, formatDate, cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -10,45 +10,73 @@ export const metadata: Metadata = { title: "Préstamos" };
 export const dynamic = "force-dynamic";
 
 export default async function PrestamosPage() {
-  const [loans, people, balances] = await Promise.all([getLoans(), getPeople(), getPersonBalances()]);
-  const outstanding = balances.filter((b) => Math.abs(b.loan_outstanding) > 0.005).map((b) => ({ ...b, person: people.find((p) => p.id === b.person_id) }));
-  const total = outstanding.reduce((s, b) => s + b.loan_outstanding, 0);
-  const given = loans.filter((l) => l.movement_type === "prestamo").reduce((s, l) => s - l.amount, 0);
-  const paid = loans.filter((l) => l.movement_type === "cobro_prestamo").reduce((s, l) => s + l.amount, 0);
+  const [loans, people, balances, clients, clientBalances] = await Promise.all([getLoans(), getPeople(), getPersonBalances(), getClients(), getClientBalances()]);
+  const withPerson = balances.map((b) => ({ ...b, person: people.find((p) => p.id === b.person_id) }));
+  const clientLoans = withPerson.filter((b) => Math.abs(b.loan_client_outstanding) > 0.005);
+  const ownLoans = withPerson.filter((b) => Math.abs(b.loan_own_outstanding) > 0.005);
+  const totalClient = clientLoans.reduce((s, b) => s + b.loan_client_outstanding, 0);
+  const totalOwn = ownLoans.reduce((s, b) => s + b.loan_own_outstanding, 0);
+  const historyClient = loans.filter((l) => l.client_id);
+  const historyOwn = loans.filter((l) => !l.client_id);
+
+  const Section = ({ title, desc, rows, total, history, field }: { title: string; desc: string; rows: typeof withPerson; total: number; history: typeof loans; field: "loan_client_outstanding" | "loan_own_outstanding" }) => (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{desc}</CardDescription>
+        </div>
+        <span className={cn("rounded-md px-2 py-0.5 text-[15px] font-bold tabular", total > 0 ? "bg-danger/10 text-danger" : "bg-positive/15 text-positive")}>{formatMXN(total)}</span>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? <p className="py-2 text-[14px] text-muted-foreground">Nada por cobrar.</p> : (
+          <ul className="divide-y divide-border">
+            {rows.map((b) => (
+              <li key={b.person_id} className="flex items-center justify-between py-2.5">
+                <div><div className="text-[14.5px] font-medium">{b.person?.name ?? "—"}</div><div className="text-[12px] text-muted-foreground">{b.last_date ? `último mov. ${formatDate(b.last_date)}` : ""}</div></div>
+                <span className={cn("rounded-md px-2 py-0.5 text-[14px] font-semibold tabular", b[field] > 0 ? "bg-danger/10 text-danger" : "bg-positive/15 text-positive")}>{formatMXN(b[field])}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {history.length > 0 && (
+          <>
+            <h3 className="mt-4 mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Historial</h3>
+            {history.map((r) => <MovementRow key={r.id} row={r} showProject={false} showDate />)}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <>
-      <PageHeader title="Préstamos y encargos" subtitle="Dinero que sale de tu caja por cuenta de terceros; no es gasto de obra ni personal">
+      <PageHeader title="Préstamos y encargos" subtitle="Dinero que sale de tu caja y te tienen que regresar">
         <LoanButtons />
       </PageHeader>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <Card className="px-5 py-4"><div className="text-[13px] font-medium text-muted-foreground">Por cobrar</div><div className="mt-2 text-[28px] font-bold leading-none tabular text-danger">{formatMXN(total)}</div><div className="mt-2 text-[12.5px] text-muted-foreground">{outstanding.length} persona{outstanding.length === 1 ? "" : "s"}</div></Card>
-        <Card className="px-5 py-4"><div className="text-[13px] font-medium text-muted-foreground">Prestado (histórico)</div><div className="mt-2 text-[28px] font-bold leading-none tabular">{formatMXN(given)}</div></Card>
-        <Card className="px-5 py-4 col-span-2 lg:col-span-1"><div className="text-[13px] font-medium text-muted-foreground">Cobrado (histórico)</div><div className="mt-2 text-[28px] font-bold leading-none tabular text-positive">{formatMXN(paid)}</div></Card>
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <Section
+          title={`Autorizados por ${clients.map((c) => c.name).join(" / ") || "el cliente"}`}
+          desc="Salen del fondo del cliente; bajan su disponible y se muestran como “prestado por cobrar”. Al cobrarlos regresan al fondo."
+          rows={clientLoans}
+          total={totalClient}
+          history={historyClient}
+          field="loan_client_outstanding"
+        />
+        <Section
+          title="Propios a trabajadores y contratistas"
+          desc="Salen de tu caja; no tocan el fondo del cliente. Se llevan por persona."
+          rows={ownLoans}
+          total={totalOwn}
+          history={historyOwn}
+          field="loan_own_outstanding"
+        />
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.4fr] lg:items-start">
-        <Card>
-          <CardHeader><CardTitle>Saldos por persona</CardTitle><CardDescription>Prestado − cobrado</CardDescription></CardHeader>
-          <CardContent>
-            {outstanding.length === 0 ? <p className="py-4 text-[14px] text-muted-foreground">Nadie te debe.</p> : (
-              <ul className="divide-y divide-border">
-                {outstanding.map((b) => (
-                  <li key={b.person_id} className="flex items-center justify-between py-2.5">
-                    <div><div className="text-[14.5px] font-medium">{b.person?.name ?? "—"}</div><div className="text-[12px] text-muted-foreground">{b.last_date ? `último mov. ${formatDate(b.last_date)}` : ""}</div></div>
-                    <span className={cn("rounded-md px-2 py-0.5 text-[14px] font-semibold tabular", b.loan_outstanding > 0 ? "bg-danger/10 text-danger" : "bg-positive/15 text-positive")}>{formatMXN(b.loan_outstanding)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Historial</CardTitle><CardDescription>Préstamos otorgados y cobros</CardDescription></CardHeader>
-          <CardContent>
-            {loans.length === 0 ? <p className="py-4 text-[14px] text-muted-foreground">Sin préstamos registrados. Usa “Prestar” arriba o el tipo “Préstamo otorgado” al registrar.</p> : loans.map((r) => <MovementRow key={r.id} row={r} showProject={false} showDate />)}
-          </CardContent>
-        </Card>
-      </div>
+      {clientBalances.some((b) => b.loans_out > 0) && (
+        <p className="mt-3 text-[12.5px] text-muted-foreground">
+          {clients.map((c) => { const b = clientBalances.find((x) => x.client_id === c.id); return b && b.loans_out > 0 ? `${c.name}: ${formatMXN(b.loans_out)} prestado por cobrar dentro de su fondo` : null; }).filter(Boolean).join(" · ")}
+        </p>
+      )}
     </>
   );
 }

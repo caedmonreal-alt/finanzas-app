@@ -94,8 +94,8 @@ export default async function ProyectosPage() {
           <div className="mb-6 grid gap-3 lg:grid-cols-2">
             {clients.map((c) => {
               const b = clientBalances.find((x) => x.client_id === c.id);
-              const received = b?.received ?? 0, applied = b?.applied ?? 0, pettyPending = b?.petty_pending ?? 0, noProj = b?.applied_no_project ?? 0;
-              const available = received - applied - pettyPending;
+              const received = b?.received ?? 0, applied = b?.applied ?? 0, pettyPending = b?.petty_pending ?? 0, noProj = b?.applied_no_project ?? 0, loansOut = b?.loans_out ?? 0, fees = b?.fees ?? 0;
+              const available = received - applied - pettyPending - loansOut;
               const dist = cpt.filter((x) => x.client_id === c.id && x.applied > 0).map((x) => ({ ...x, project: projects.find((p) => p.id === x.project_id) })).sort((a, b2) => b2.applied - a.applied);
               return (
                 <Card key={c.id} className="px-5 py-4">
@@ -108,17 +108,18 @@ export default async function ProyectosPage() {
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <div className="rounded-2xl bg-card-2 px-3 py-2.5"><div className="text-[12px] text-muted-foreground">Recibido</div><div className="mt-0.5 text-[18px] font-bold tabular">{formatMXN(received)}</div></div>
-                    <div className="rounded-2xl bg-card-2 px-3 py-2.5"><div className="text-[12px] text-muted-foreground">Aplicado</div><div className="mt-0.5 text-[18px] font-bold tabular">{formatMXN(applied + pettyPending)}</div>{pettyPending > 0 && <div className="text-[11px] text-muted-foreground">incl. {formatMXN(pettyPending)} caja chica sin comprobar</div>}</div>
+                    <div className="rounded-2xl bg-card-2 px-3 py-2.5"><div className="text-[12px] text-muted-foreground">Aplicado</div><div className="mt-0.5 text-[18px] font-bold tabular">{formatMXN(applied + pettyPending + loansOut)}</div><div className="text-[11px] text-muted-foreground">{[pettyPending > 0 ? `${formatMXN(pettyPending)} caja chica sin comprobar` : null, loansOut > 0 ? `${formatMXN(loansOut)} prestado por cobrar` : null, fees > 0 ? `${formatMXN(fees)} mi pago` : null].filter(Boolean).join(" · ") || "obras + contratistas"}</div></div>
                     <div className={cn("rounded-2xl px-3 py-2.5", available >= 0 ? "bg-positive/10" : "bg-danger/10")}><div className="text-[12px] text-muted-foreground">{available >= 0 ? "Disponible" : "Puesto de mi bolsa"}</div><div className={cn("mt-0.5 text-[18px] font-bold tabular", available >= 0 ? "text-positive" : "text-danger")}>{formatMXN(Math.abs(available))}</div></div>
                   </div>
                   {received > 0 && (
                     <div className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-card-2">
                       {dist.map((d) => <span key={d.project_id} style={{ flex: d.applied, background: colorOf(d.project_id) }} title={`${d.project?.name}: ${formatMXN(d.applied)}`} />)}
                       {noProj > 0 && <span style={{ flex: noProj, background: "#8E8E93" }} title={`Sin obra: ${formatMXN(noProj)}`} />}
+                      {loansOut > 0 && <span style={{ flex: loansOut, background: "#C7C7CC" }} title={`Prestado por cobrar: ${formatMXN(loansOut)}`} />}
                       {available > 0 && <span style={{ flex: available, background: "transparent" }} />}
                     </div>
                   )}
-                  {(dist.length > 0 || noProj > 0) && (
+                  {(dist.length > 0 || noProj > 0 || loansOut > 0) && (
                     <ul className="mt-2 grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                       {dist.map((d) => (
                         <li key={d.project_id} className="flex items-center justify-between py-1 text-[13px]">
@@ -127,6 +128,7 @@ export default async function ProyectosPage() {
                         </li>
                       ))}
                       {noProj > 0 && <li className="flex items-center justify-between py-1 text-[13px]"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#8E8E93]" />Sin obra (contratistas, etc.)</span><span className="font-semibold tabular">{formatMXN(noProj)}</span></li>}
+                      {loansOut > 0 && <li className="flex items-center justify-between py-1 text-[13px]"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#C7C7CC]" />Prestado por cobrar (autorizado)</span><span className="font-semibold tabular">{formatMXN(loansOut)}</span></li>}
                     </ul>
                   )}
                 </Card>

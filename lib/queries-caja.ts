@@ -9,6 +9,8 @@ export interface LedgerRow {
   project_id: string | null;
   person_id: string | null;
   client_id: string | null;
+  split_group: string | null;
+  is_fee: boolean;
   movement_type: MovementType;
   amount: number;
   date: string;
@@ -37,6 +39,8 @@ export interface PersonBalance {
   petty_proved: number;
   payments: number;
   loan_outstanding: number;
+  loan_client_outstanding: number;
+  loan_own_outstanding: number;
   last_date: string | null;
 }
 
@@ -107,11 +111,11 @@ export async function getPersonBalances(): Promise<PersonBalance[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("person_balances").select("*");
   if (error) throw error;
-  return (data ?? []).map((r) => ({ ...r, petty_given: num(r.petty_given), petty_proved: num(r.petty_proved), payments: num(r.payments), loan_outstanding: num(r.loan_outstanding) }));
+  return (data ?? []).map((r) => ({ ...r, petty_given: num(r.petty_given), petty_proved: num(r.petty_proved), payments: num(r.payments), loan_outstanding: num(r.loan_outstanding), loan_client_outstanding: num(r.loan_client_outstanding), loan_own_outstanding: num(r.loan_own_outstanding) }));
 }
 
 const LEDGER_SELECT =
-  "id, account_id, category_id, project_id, person_id, client_id, movement_type, amount, date, note, is_recurring, transfer_account_id, account:accounts!transactions_account_id_fkey(name, type), project:projects(name, kind, color), person:people(name), category:categories(name, icon)";
+  "id, account_id, category_id, project_id, person_id, client_id, split_group, is_fee, movement_type, amount, date, note, is_recurring, transfer_account_id, account:accounts!transactions_account_id_fkey(name, type), project:projects(name, kind, color), person:people(name), category:categories(name, icon)";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLedger(rows: any[]): LedgerRow[] {
@@ -229,6 +233,8 @@ export interface ClientBalance {
   applied: number;
   petty_pending: number;
   applied_no_project: number;
+  loans_out: number;
+  fees: number;
   last_date: string | null;
 }
 export interface ClientProjectTotal {
@@ -248,11 +254,20 @@ export async function getClientBalances(): Promise<ClientBalance[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("client_balances").select("*");
   if (error) throw error;
-  return (data ?? []).map((r) => ({ ...r, received: num(r.received), applied: num(r.applied), petty_pending: num(r.petty_pending), applied_no_project: num(r.applied_no_project) }));
+  return (data ?? []).map((r) => ({ ...r, received: num(r.received), applied: num(r.applied), petty_pending: num(r.petty_pending), applied_no_project: num(r.applied_no_project), loans_out: num(r.loans_out), fees: num(r.fees) }));
 }
 export async function getClientProjectTotals(): Promise<ClientProjectTotal[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("client_project_totals").select("*");
   if (error) throw error;
   return (data ?? []).map((r) => ({ ...r, applied: num(r.applied), received_direct: num(r.received_direct) }));
+}
+
+export interface ProjectMonthSpend { project_id: string; month: string; spent: number; fees: number }
+/** Monthly spend (incl. proofs and fees) for all projects in a year */
+export async function getYearProjectSpend(year: number): Promise<ProjectMonthSpend[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("monthly_project_spend").select("project_id, month, spent, fees").gte("month", `${year}-01-01`).lte("month", `${year}-12-31`);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ project_id: r.project_id, month: r.month, spent: num(r.spent), fees: num(r.fees) }));
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import { createTransaction, updateTransaction, deleteTransaction } from "@/lib/actions/transactions";
+import { createTransaction, updateTransaction, deleteTransaction, previewFeeSplit, createFeeSplit, deleteSplitGroup, type FeeBasis, type FeeSplitPreviewRow } from "@/lib/actions/transactions";
 import { todayISO } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ export interface EditableTransaction {
   person_id?: string | null;
   person_name?: string | null;
   client_id?: string | null;
+  split_group?: string | null;
+  is_fee?: boolean;
   movement_type?: MovementType;
   date: string;
   note: string | null;
@@ -52,6 +54,10 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
   const [type, setType] = useState<MovementType>("gasto");
   const [personName, setPersonName] = useState("");
   const [clientId, setClientId] = useState<string | null>(null);
+  const [feeMode, setFeeMode] = useState(false);
+  const [feeBasis, setFeeBasis] = useState<FeeBasis>("prev_month");
+  const [feePreview, setFeePreview] = useState<FeeSplitPreviewRow[]>([]);
+  const [loanFromClient, setLoanFromClient] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -87,6 +93,8 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setType(edit.movement_type ?? (edit.amount < 0 ? "gasto" : "otro_ingreso"));
       setPersonName(edit.person_name ?? "");
       setClientId(edit.client_id ?? null);
+      setLoanFromClient(!!edit.client_id && (edit.movement_type === "prestamo" || edit.movement_type === "cobro_prestamo"));
+      setFeeMode(false);
       setCategoryId(edit.category_id);
       setAccountId(edit.account_id);
       setDate(edit.date);
@@ -100,6 +108,9 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setType(initialKind === "income" ? "otro_ingreso" : "gasto");
       setPersonName("");
       setClientId(clients[0]?.id ?? null);
+      setFeeMode(false);
+      setFeePreview([]);
+      setLoanFromClient(false);
       setCategoryId(null);
       setAccountId((prev) => prev || cashAccounts[0]?.account_id || spendingAccounts[0]?.account_id || "");
       setDate(todayISO());
@@ -133,6 +144,20 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Fee split preview
+  const isLoan = type === "prestamo" || type === "cobro_prestamo";
+  useEffect(() => {
+    if (!feeMode || !clientId) return setFeePreview([]);
+    const value = Number(amount.replace(/[^0-9.]/g, ""));
+    if (!value) return setFeePreview([]);
+    const h = setTimeout(async () => {
+      const res = await previewFeeSplit(clientId, value, feeBasis, date);
+      setFeePreview(res.rows);
+      if (res.error) setError(res.error);
+    }, 250);
+    return () => clearTimeout(h);
+  }, [feeMode, clientId, amount, feeBasis, date]);
+
   function submit() {
     const value = Number(amount.replace(/[^0-9.]/g, ""));
     if (!value || value <= 0) {
@@ -141,6 +166,18 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       return;
     }
     if (!accountId) return setError("Primero crea una cuenta de efectivo en Cuentas.");
+    if (feeMode) {
+      if (!clientId) return setError("Elige el cliente.");
+      start(async () => {
+        const res = await createFeeSplit({ client_id: clientId, amount: value, basis: feeBasis, date, account_id: accountId, note });
+        if (res.error) return setError(res.error);
+        setToast(`Mi pago de ${formatMXN(value)} repartido en ${res.count} obras`);
+        setTimeout(() => setToast(null), 2600);
+        onClose();
+        router.refresh();
+      });
+      return;
+    }
     if (typeDef?.needsPerson && !personName.trim()) return setError("Escribe a quién.");
     const input = {
       kind: dir === "in" ? ("income" as const) : ("expense" as const),
@@ -148,7 +185,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       account_id: accountId,
       category_id: isPersonal ? categoryId : null,
       person_name: typeDef?.needsPerson ? personName.trim() : null,
-      client_id: type === "ministracion" || (projectId === null && dir === "out") ? clientId : null,
+      client_id: type === "ministracion" || (isLoan && loanFromClient) || (projectId === null && dir === "out" && !isLoan) ? clientId : null,
       project_id: type === "ministracion" ? null : projectId,
       movement_type: type,
       date,
@@ -169,7 +206,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
   function remove() {
     if (!edit) return;
     start(async () => {
-      const res = await deleteTransaction(edit.id);
+      const res = edit.split_group ? await deleteSplitGroup(edit.split_group) : await deleteTransaction(edit.id);
       if (res.error) return setError(res.error);
       setToast("Movimiento eliminado");
       setTimeout(() => setToast(null), 2000);
@@ -233,7 +270,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
               className="h-11 w-full rounded-xl border border-border bg-card-2 px-3 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-accent/50"
             />
 
-            {type === "ministracion" ? (
+            {feeMode ? null : type === "ministracion" ? (
               <>
                 <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Cliente (fondo común)</div>
                 <div className="mt-1.5 flex flex-wrap gap-2">
@@ -275,11 +312,58 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
             <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Tipo</div>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {typeDefs.map((t) => (
-                <button key={t.id} type="button" title={t.hint} onClick={() => setType(t.id)} className={chip(type === t.id)}>
+                <button key={t.id} type="button" title={t.hint} onClick={() => { setType(t.id); setFeeMode(false); }} className={chip(type === t.id && !feeMode)}>
                   {t.label}
                 </button>
               ))}
+              {dir === "out" && clients.length > 0 && !edit && (
+                <button type="button" title="Se reparte proporcionalmente entre las obras activas del cliente" onClick={() => { setFeeMode(true); setType("gasto"); }} className={chip(feeMode)}>
+                  Mi pago (repartido)
+                </button>
+              )}
             </div>
+
+            {feeMode && (
+              <div className="mt-3 rounded-2xl bg-card-2 p-3">
+                <div className="text-[12.5px] font-semibold text-muted-foreground">Cliente</div>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {clients.map((c) => <button key={c.id} type="button" onClick={() => setClientId(c.id)} className={chip(clientId === c.id)}>{c.name}</button>)}
+                </div>
+                <div className="mt-2.5 text-[12.5px] font-semibold text-muted-foreground">Repartir según</div>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {([["prev_month", "Gasto del mes anterior"], ["month", "Gasto de este mes"], ["year", "Gasto del año"], ["equal", "Partes iguales"]] as [FeeBasis, string][]).map(([b, l]) => (
+                    <button key={b} type="button" onClick={() => setFeeBasis(b)} className={chip(feeBasis === b)}>{l}</button>
+                  ))}
+                </div>
+                {feePreview.length > 0 && (
+                  <ul className="mt-2.5 divide-y divide-border text-[13px]">
+                    {feePreview.map((r) => (
+                      <li key={r.project_id} className="flex items-center justify-between py-1.5">
+                        <span>{r.name} <span className="text-muted-foreground">· {(r.weight * 100).toFixed(0)} %</span></span>
+                        <span className="font-semibold tabular">{formatMXN(r.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {feePreview.length === 0 && <p className="mt-2 text-[12.5px] text-muted-foreground">Escribe el monto para ver el reparto.</p>}
+              </div>
+            )}
+
+            {isLoan && clients.length > 0 && (
+              <div className="mt-3 rounded-2xl bg-card-2 p-3">
+                <div className="text-[12.5px] font-semibold text-muted-foreground">Tipo de préstamo</div>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setLoanFromClient(false)} className={chip(!loanFromClient)}>Propio (trabajador / contratista)</button>
+                  <button type="button" onClick={() => setLoanFromClient(true)} className={chip(loanFromClient)}>Autorizado por el cliente (sale del fondo)</button>
+                </div>
+                {loanFromClient && clients.length > 1 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {clients.map((c) => <button key={c.id} type="button" onClick={() => setClientId(c.id)} className={chip(clientId === c.id)}>{c.name}</button>)}
+                  </div>
+                )}
+                <p className="mt-1.5 text-[12px] text-muted-foreground">{loanFromClient ? "Baja el disponible del fondo y queda como “prestado por cobrar”; al cobrarlo regresa al fondo." : "Sale de tu caja; se lleva por persona y no toca el fondo del cliente."}</p>
+              </div>
+            )}
 
             {typeDef?.needsPerson && (
               <>

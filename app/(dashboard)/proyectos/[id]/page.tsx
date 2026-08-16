@@ -16,10 +16,10 @@ export const dynamic = "force-dynamic";
 export default async function ProyectoPage({ params }: { params: { id: string } }) {
   const project = await getProject(params.id);
   if (!project) notFound();
-  const [totals, ledger, proofs, monthly, projects, clients, clientBalances] = await Promise.all([getProjectTotals(), getProjectLedger(project.id), getProofs({ projectId: project.id }), getMonthlyProjectTotals(project.id, 6), getProjects(), getClients(), getClientBalances()]);
+  const [totals, ledger, proofs, monthly, projects, clients, clientBalances] = await Promise.all([getProjectTotals(), getProjectLedger(project.id), getProofs({ projectId: project.id }), getMonthlyProjectTotals(project.id, 12), getProjects(), getClients(), getClientBalances()]);
   const client = clients.find((c) => c.id === project.client_id) ?? null;
   const cb = client ? clientBalances.find((b) => b.client_id === client.id) : null;
-  const clientAvailable = cb ? cb.received - cb.applied - cb.petty_pending : null;
+  const clientAvailable = cb ? cb.received - cb.applied - cb.petty_pending - cb.loans_out : null;
   const color = projectColor(projects)(project.id);
   ledger.forEach((r) => { if (r.project) r.project.color = color; });
   const t = totals.find((x) => x.project_id === project.id);
@@ -54,7 +54,7 @@ export default async function ProyectoPage({ params }: { params: { id: string } 
         <K label="Gastado" value={formatMXN(spent)} foot={`directo ${formatMXN(spent - proved)} · comprobado ${formatMXN(proved)}`} />
         {project.kind === "obra" ? (
           <>
-            <K label={client ? `Fondo de ${client.name}` : "Recibido directo"} value={client && clientAvailable !== null ? formatMXN(Math.abs(clientAvailable)) : formatMXN(received)} foot={client && cb ? `${clientAvailable! >= 0 ? "disponible" : "puesto de mi bolsa"} · recibido ${formatMXN(cb.received)} · aplicado ${formatMXN(cb.applied + cb.petty_pending)}` : contract ? `${pctContract.toFixed(0)} % de ${formatMXN(contract)}` : "Sin cliente asignado"} cls={client && clientAvailable !== null ? (clientAvailable >= 0 ? "text-positive" : "text-danger") : undefined} />
+            <K label={client ? `Fondo de ${client.name}` : "Recibido directo"} value={client && clientAvailable !== null ? formatMXN(Math.abs(clientAvailable)) : formatMXN(received)} foot={client && cb ? `${clientAvailable! >= 0 ? "disponible" : "puesto de mi bolsa"} · recibido ${formatMXN(cb.received)} · aplicado ${formatMXN(cb.applied + cb.petty_pending + cb.loans_out)}` : contract ? `${pctContract.toFixed(0)} % de ${formatMXN(contract)}` : "Sin cliente asignado"} cls={client && clientAvailable !== null ? (clientAvailable >= 0 ? "text-positive" : "text-danger") : undefined} />
             <K label="Aplicado a esta obra" value={formatMXN(spent + (petty - proved))} foot={`gastado ${formatMXN(spent)} + caja chica sin comprobar ${formatMXN(petty - proved)}${cb && cb.received ? ` · ${(((spent + petty - proved) / cb.received) * 100).toFixed(0)} % del fondo` : ""}`} />
             <K label="Ministraciones por recibir" value={remainingInst === null ? "—" : String(remainingInst)} foot={project.installment_amount ? `de ${formatMXN(project.installment_amount)} · faltan ${formatMXN(Math.max(0, contract - received))}` : "Captura monto contratado y ministración típica"} />
           </>
@@ -111,7 +111,7 @@ export default async function ProyectoPage({ params }: { params: { id: string } 
         </Card>
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>Últimos 6 meses</CardTitle><CardDescription>Entradas y salidas</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Últimos 12 meses</CardTitle><CardDescription>Salidas · acumulado {new Date().getFullYear()}: <b className="text-foreground">{formatMXN(monthly.filter((m) => m.month.startsWith(String(new Date().getFullYear()))).reduce((s, m) => s + m.expense, 0))}</b></CardDescription></CardHeader>
             <CardContent>
               {monthly.length === 0 ? <p className="text-[14px] text-muted-foreground">Sin datos.</p> : (
                 <div className="flex h-32 items-end gap-2">
