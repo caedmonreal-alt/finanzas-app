@@ -380,3 +380,43 @@ export async function mostUsedProjects(limit = 5): Promise<string[]> {
   (data ?? []).forEach((r) => counts.set(r.project_id!, (counts.get(r.project_id!) ?? 0) + 1));
   return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
 }
+
+/* ---------- Undo last action (any insert/update/delete on transactions, incl. batches) ---------- */
+export interface UndoInfo { entries: number; actions: string; sample: string | null; total: number; at: string | null }
+export async function getLastUndo(): Promise<UndoInfo | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("last_undo_batch");
+  if (error) return null;
+  const r = Array.isArray(data) ? data[0] : data;
+  if (!r || !r.entries) return null;
+  return { entries: Number(r.entries), actions: r.actions ?? "", sample: r.sample ?? null, total: Number(r.total ?? 0), at: r.batch_start ?? null };
+}
+export async function undoLast(): Promise<{ error?: string; reverted?: number }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("undo_last_batch");
+  if (error) return { error: error.message };
+  revalidateAll();
+  return { reverted: Number(data ?? 0) };
+}
+
+/* ---------- Bulk edits ---------- */
+export async function bulkUpdateTransactions(ids: string[], patch: { date?: string; project_id?: string | null }): Promise<Result & { count?: number }> {
+  if (!ids.length) return { error: "Nada seleccionado." };
+  const upd: Record<string, unknown> = {};
+  if (patch.date) { if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.date)) return { error: "Fecha inválida." }; upd.date = patch.date; }
+  if (patch.project_id !== undefined) upd.project_id = patch.project_id;
+  if (!Object.keys(upd).length) return { error: "Nada que cambiar." };
+  const supabase = createClient();
+  const { error } = await supabase.from("transactions").update(upd).in("id", ids);
+  if (error) return { error: error.message };
+  revalidateAll();
+  return { count: ids.length };
+}
+export async function bulkDeleteTransactions(ids: string[]): Promise<Result & { count?: number }> {
+  if (!ids.length) return { error: "Nada seleccionado." };
+  const supabase = createClient();
+  const { error } = await supabase.from("transactions").delete().in("id", ids);
+  if (error) return { error: error.message };
+  revalidateAll();
+  return { count: ids.length };
+}

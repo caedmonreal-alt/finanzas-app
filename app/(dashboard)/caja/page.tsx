@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getCashLedger, getCashOpening, getProjects, getPersonBalances, getPeople, getCashCounts, getClients, getClientBalances, getUncoveredDrawsTotal, getMonthlyFee } from "@/lib/queries-caja";
-import { monthKey, parseMonthKey, monthLabel, dayLabel, todayISO } from "@/lib/dates";
+import { monthKey, parseMonthKey, monthLabel, todayISO } from "@/lib/dates";
 import { cn, formatMXN, formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { MonthPicker } from "@/components/month-picker";
 import { QuickAddButton } from "@/components/quick-add/quick-add-button";
 import { PdfButton } from "@/components/reportes/pdf-button";
-import type React from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { MovementRow } from "@/components/caja/movement-row";
+import { Ledger } from "@/components/caja/ledger";
+import { UndoButton } from "@/components/caja/undo-button";
 import { projectColor } from "@/lib/project-colors";
 
 export const metadata: Metadata = { title: "Caja del mes" };
@@ -68,13 +68,6 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
   });
   const projRows = Array.from(byProject.values()).sort((a, b) => b.total - a.total);
 
-  // by day
-  const days = new Map<string, typeof rows>();
-  rows.forEach((r) => {
-    if (!days.has(r.date)) days.set(r.date, []);
-    days.get(r.date)!.push(r);
-  });
-  let running = opening;
 
   const pending = balances.map((b) => ({ ...b, person: people.find((p) => p.id === b.person_id) })).filter((b) => b.petty_given - b.petty_proved > 0.005);
   const loans = balances.filter((b) => b.loan_outstanding > 0.005);
@@ -88,6 +81,7 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
         <Suspense>
           <MonthPicker value={key} />
         </Suspense>
+        <UndoButton compact />
         <PdfButton href={`/api/reportes/caja?mes=${key}`} title={`Caja ${monthLabel(key)}`} back={`/caja?mes=${key}`} />
         <QuickAddButton className="hidden sm:flex" label="Registrar" />
       </PageHeader>
@@ -172,60 +166,7 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
               <Tot label={compensation ? "Salidas (netas)" : "Salidas"} value={"−" + formatMXN(tOut)} cls="text-danger" />
               <Tot label="Saldo final" value={formatMXN(closing)} />
             </div>
-            {rows.length === 0 ? (
-              <p className="py-8 text-center text-[14px] text-muted-foreground">Sin movimientos de efectivo este mes.</p>
-            ) : (
-              Array.from(days.entries()).map(([date, list]) => {
-                const dIn = list.reduce((s, r) => s + Math.max(cashDelta(r), 0), 0);
-                const dOut = list.reduce((s, r) => s + Math.max(-cashDelta(r), 0), 0);
-                return (
-                  <section key={date} className="border-t border-border pt-2.5 pb-1 first:border-t-0 first:pt-0">
-                    <div className="mb-1 flex items-baseline justify-between">
-                      <h3 className="text-[15px] font-bold">
-                        {date.slice(-2)} <span className="text-[13px] font-medium text-muted-foreground">{dayLabel(date)}</span>
-                      </h3>
-                      <span className="text-[12.5px] text-muted-foreground tabular">
-                        {dIn ? `+${formatMXN(dIn)} · ` : ""}
-                        {dOut ? `−${formatMXN(dOut)}` : ""}
-                      </span>
-                    </div>
-                    {(() => {
-                      // group split lines (mi pago, gasolina) as one expandable row
-                      const out: React.ReactNode[] = [];
-                      const seen = new Set<string>();
-                      list.forEach((r) => {
-                        if (r.split_group && r.amount < 0) {
-                          if (seen.has(r.split_group)) return;
-                          seen.add(r.split_group);
-                          const members = list.filter((x) => x.split_group === r.split_group && x.amount < 0);
-                          const total = members.reduce((a, x) => a + cashDelta(x), 0);
-                          const startBal = running;
-                          members.forEach((x) => { running += cashDelta(x); });
-                          const label = (r.note ?? "Reparto").replace(/\s*·\s*parte proporcional.*$/i, "");
-                          out.push(
-                            <details key={r.split_group} className="group">
-                              <summary className="-mx-2 grid cursor-pointer list-none grid-cols-[32px_88px_1fr] items-center gap-2 rounded-xl px-2 py-2 hover:bg-card-2/70 sm:grid-cols-[36px_112px_1fr_96px] sm:gap-3">
-                                <span className="grid h-8 w-8 place-items-center rounded-lg bg-card-2 text-[15px] sm:h-9 sm:w-9">{r.is_fee ? "💼" : "⛽"}</span>
-                                <span className="text-right text-[14px] font-semibold tabular sm:text-[15px]">{formatMXN(total)}</span>
-                                <span className="min-w-0"><span className="block truncate text-[14.5px]">{label}</span><span className="block text-[12px] text-muted-foreground">{r.is_fee ? "Mi pago" : "Gasto compartido"} · repartido en {members.length} obras <span className="text-accent">▸ ver</span></span></span>
-                                <span className="hidden text-right text-[12.5px] text-muted-foreground tabular sm:block">{formatMXN(startBal + total)}</span>
-                              </summary>
-                              <div className="ml-6 border-l border-border pl-2">
-                                {members.map((x) => <MovementRow key={x.id} row={x} />)}
-                              </div>
-                            </details>
-                          );
-                          return;
-                        }
-                        running += cashDelta(r);
-                        out.push(<MovementRow key={r.id} row={r} running={running} />);
-                      });
-                      return out;
-                    })()}
-                  </section>
-                );
-              })
-            )}
+            <Ledger rows={rows} opening={opening} projects={projects.filter((p) => !p.is_archived)} emptyText="Sin movimientos de efectivo este mes." />
           </CardContent>
         </Card>
 

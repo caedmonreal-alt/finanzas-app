@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Search, X } from "lucide-react";
 import { searchAll, type SearchResult } from "@/lib/actions/search";
-import { MovementRow } from "@/components/caja/movement-row";
+import { Ledger } from "@/components/caja/ledger";
+import { UndoButton } from "@/components/caja/undo-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMXN } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ export function SearchBox({ initial }: { initial: string }) {
           <input ref={ref} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Concepto, persona, obra, cliente, monto, emoji…" className="h-12 w-full rounded-2xl bg-card pl-11 pr-10 text-[16px] shadow-card outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-accent/50" />
           {q && <button onClick={() => setQ("")} className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-card-2" aria-label="Limpiar"><X className="h-4 w-4" /></button>}
         </label>
+        <UndoButton compact />
       </div>
 
       {!q && (
@@ -59,8 +61,8 @@ export function SearchBox({ initial }: { initial: string }) {
             <CardContent className="pt-4">
               {res.transactions.length === 0 ? <p className="py-6 text-center text-[14px] text-muted-foreground">Sin movimientos que coincidan.</p> : (
                 <>
-                  <div className="mb-2 flex justify-between text-[13px] text-muted-foreground"><span>{res.transactions.length} movimientos{res.transactions.length >= 80 ? " (mostrando los más recientes)" : ""}</span><span>neto <b className="text-foreground tabular">{formatMXN(total)}</b></span></div>
-                  {res.transactions.map((r) => <MovementRow key={r.id} row={r} showDate />)}
+                  <div className="mb-2 flex justify-between text-[13px] text-muted-foreground"><span>{res.transactions.length >= 80 ? "Mostrando los 80 más recientes" : ""}</span><span>neto <b className="text-foreground tabular">{formatMXN(total)}</b></span></div>
+                  <Ledger rows={res.transactions} groupByDay />
                 </>
               )}
             </CardContent>
