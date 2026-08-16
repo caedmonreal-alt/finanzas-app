@@ -27,7 +27,7 @@ export function CajaReport({ monthLabel, opening, rows, cashDelta, byProject, pe
       <View style={s.kpis}>
         <Kpi label="Saldo inicial" value={mxn(opening)} />
         <Kpi label="Entradas" value={"+" + mxn(tIn)} color="#1a9a3f" />
-        <Kpi label="Salidas" value={"−" + mxn(tOut)} color="#D70015" />
+        <Kpi label="Salidas" value={"-" + mxn(tOut)} color="#D70015" />
         <Kpi label="Saldo final" value={mxn(closing)} />
       </View>
 
