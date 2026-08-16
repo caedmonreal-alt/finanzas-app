@@ -16,10 +16,11 @@ export function ClientForm({ client }: { clients: Client[]; client?: Client }) {
   const [pending, start] = useTransition();
   const [name, setName] = useState(client?.name ?? "");
   const [notes, setNotes] = useState(client?.notes ?? "");
+  const [fee, setFee] = useState(client?.monthly_fee ? String(client.monthly_fee) : "");
   const [error, setError] = useState<string | null>(null);
   function save() {
     start(async () => {
-      const res = await upsertClient(client?.id ?? null, { name, notes });
+      const res = await upsertClient(client?.id ?? null, { name, notes, monthly_fee: Number(fee.replace(/[^0-9.]/g, "")) || null });
       if (res.error) return setError(res.error);
       setOpen(false);
       router.refresh();
@@ -41,6 +42,7 @@ export function ClientForm({ client }: { clients: Client[]; client?: Client }) {
             </div>
             <div className="space-y-3">
               <div className="space-y-1.5"><Label>Nombre</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del cliente" autoFocus /></div>
+              <div className="space-y-1.5"><Label>Mi pago mensual acordado (opcional)</Label><Input inputMode="numeric" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="100000" /><p className="text-[12px] text-muted-foreground">Sirve para ver cuánto te falta por retirar cada mes en “Mi pago”.</p></div>
               <div className="space-y-1.5"><Label>Notas</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
               {error && <p className="text-[13px] text-danger">{error}</p>}
               <Button className="w-full" onClick={save} disabled={pending || !name.trim()}>{pending ? "Guardando…" : "Guardar"}</Button>

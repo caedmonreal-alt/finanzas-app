@@ -4,6 +4,7 @@ export const NAV_ITEMS = [
   { href: "/resumen", label: "Resumen anual", short: "Resumen", icon: "calendar" },
   { href: "/personas", label: "Caja chica", short: "Caja chica", icon: "users" },
   { href: "/prestamos", label: "Préstamos", short: "Préstamos", icon: "handshake" },
+  { href: "/mi-pago", label: "Mi pago", short: "Mi pago", icon: "wallet2" },
   { href: "/arqueo", label: "Arqueo", short: "Arqueo", icon: "check" },
   { href: "/importar", label: "Importar", short: "Importar", icon: "import" },
   { href: "/dashboard", label: "Personal", short: "Personal", icon: "home", section: "personal" },

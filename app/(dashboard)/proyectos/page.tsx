@@ -106,11 +106,19 @@ export default async function ProyectosPage() {
                     </div>
                     <ClientForm clients={clients} client={c} />
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <div className="rounded-2xl bg-card-2 px-3 py-2.5"><div className="text-[12px] text-muted-foreground">Recibido</div><div className="mt-0.5 text-[18px] font-bold tabular">{formatMXN(received)}</div></div>
-                    <div className="rounded-2xl bg-card-2 px-3 py-2.5"><div className="text-[12px] text-muted-foreground">Aplicado</div><div className="mt-0.5 text-[18px] font-bold tabular">{formatMXN(applied + pettyPending + loansOut)}</div><div className="text-[11px] text-muted-foreground">{[pettyPending > 0 ? `${formatMXN(pettyPending)} caja chica sin comprobar` : null, loansOut > 0 ? `${formatMXN(loansOut)} prestado por cobrar` : null, fees > 0 ? `${formatMXN(fees)} mi pago` : null].filter(Boolean).join(" · ") || "obras + contratistas"}</div></div>
-                    <div className={cn("rounded-2xl px-3 py-2.5", available >= 0 ? "bg-positive/10" : "bg-danger/10")}><div className="text-[12px] text-muted-foreground">{available >= 0 ? "Disponible" : "Puesto de mi bolsa"}</div><div className={cn("mt-0.5 text-[18px] font-bold tabular", available >= 0 ? "text-positive" : "text-danger")}>{formatMXN(Math.abs(available))}</div></div>
-                  </div>
+                  {(() => { const obras = applied - noProj - fees; const rowsS: [string, number, string?][] = [
+                    ["Recibido (ministraciones)", received, "text-positive"],
+                    ["− Aplicado a obras", -obras],
+                    ...(noProj > 0 ? [["− Contratistas sin obra", -noProj] as [string, number]] : []),
+                    ...(fees > 0 ? [["− Mi pago", -fees] as [string, number]] : []),
+                    ...(pettyPending > 0 ? [["− Caja chica sin comprobar", -pettyPending] as [string, number]] : []),
+                    ...(loansOut > 0 ? [["− Prestado por cobrar (autorizado)", -loansOut] as [string, number]] : []),
+                  ]; return (
+                    <ul className="mt-3 divide-y divide-border rounded-2xl bg-card-2 px-3">
+                      {rowsS.map(([l, v, c]) => <li key={l} className="flex items-center justify-between py-1.5 text-[13.5px]"><span className="text-muted-foreground">{l}</span><span className={cn("font-medium tabular", c)}>{formatMXN(v)}</span></li>)}
+                      <li className="flex items-center justify-between py-2 text-[14.5px] font-semibold"><span>= Saldo del fondo</span><span className={cn("tabular", available >= 0 ? "text-positive" : "text-danger")}>{formatMXN(available)}{available < 0 && <span className="ml-1 text-[11.5px] font-normal">(puesto de tu bolsa)</span>}</span></li>
+                    </ul>
+                  ); })()}
                   {received > 0 && (
                     <div className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-card-2">
                       {dist.map((d) => <span key={d.project_id} style={{ flex: d.applied, background: colorOf(d.project_id) }} title={`${d.project?.name}: ${formatMXN(d.applied)}`} />)}

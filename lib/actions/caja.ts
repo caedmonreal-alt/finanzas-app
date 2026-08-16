@@ -150,18 +150,18 @@ export async function createCashCount(input: { date: string; expected: number; c
 }
 
 /* ---------- clients ---------- */
-export async function upsertClient(id: string | null, input: { name: string; notes?: string }): Promise<Result> {
+export async function upsertClient(id: string | null, input: { name: string; notes?: string; monthly_fee?: number | null }): Promise<Result> {
   const { supabase, userId } = await uid();
   if (!userId) return { error: "Sesión expirada." };
   const name = input.name.trim();
   if (!name) return { error: "Escribe un nombre." };
   if (id) {
-    const { error } = await supabase.from("clients").update({ name, notes: input.notes?.trim() || null }).eq("id", id);
+    const { error } = await supabase.from("clients").update({ name, notes: input.notes?.trim() || null, monthly_fee: input.monthly_fee ?? null }).eq("id", id);
     if (error) return { error: error.message };
     reval();
     return { id };
   }
-  const { data, error } = await supabase.from("clients").insert({ user_id: userId, name, notes: input.notes?.trim() || null }).select("id").single();
+  const { data, error } = await supabase.from("clients").insert({ user_id: userId, name, notes: input.notes?.trim() || null, monthly_fee: input.monthly_fee ?? null }).select("id").single();
   if (error) return { error: error.message.includes("duplicate") ? "Ya existe un cliente con ese nombre." : error.message };
   reval();
   return { id: data.id };

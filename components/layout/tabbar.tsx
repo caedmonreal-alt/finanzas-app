@@ -11,9 +11,9 @@ import { useQuickAdd } from "@/components/quick-add/quick-add-context";
 import { ThemeToggle } from "./theme-toggle";
 
 // Mobile: Caja · Proyectos · (+) · Caja chica · Más
-const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1]];
-const RIGHT = [NAV_ITEMS[3]];
-const MORE = NAV_ITEMS.filter((_, i) => ![0, 1, 3].includes(i));
+const MAIN = NAV_ITEMS.filter((i) => i.href === "/caja" || i.href === "/proyectos");
+const RIGHT = NAV_ITEMS.filter((i) => i.href === "/personas");
+const MORE = NAV_ITEMS.filter((i) => !["/caja", "/proyectos", "/personas"].includes(i.href));
 
 export function TabBar() {
   const pathname = usePathname();

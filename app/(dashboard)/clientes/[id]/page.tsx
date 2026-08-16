@@ -48,7 +48,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
         <K label="Aplicado a obras" value={formatMXN(applied - noProj - fees + petty)} foot={petty > 0 ? `incl. ${formatMXN(petty)} caja chica sin comprobar` : "gastos + comprobaciones"} />
         <K label="Contratistas sin obra" value={formatMXN(noProj)} foot="pagos sin obra asignada" />
         <K label="Mi pago" value={formatMXN(fees)} foot={rec ? `${((fees / rec) * 100).toFixed(0)} % de lo recibido` : ""} />
-        <K label={available >= 0 ? "Disponible" : "Puesto de mi bolsa"} value={formatMXN(Math.abs(available))} foot={loans > 0 ? `además ${formatMXN(loans)} prestado por cobrar` : "recibido − aplicado"} cls={available >= 0 ? "text-positive" : "text-danger"} />
+        <K label="Saldo del fondo" value={formatMXN(available)} foot={available >= 0 ? `recibido − aplicado − mi pago${loans > 0 ? ` − ${formatMXN(loans)} prestado` : ""}` : "negativo: puesto de tu bolsa"} cls={available >= 0 ? "text-positive" : "text-danger"} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">

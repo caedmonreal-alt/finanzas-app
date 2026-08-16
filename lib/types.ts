@@ -147,6 +147,7 @@ export interface Client {
   id: string;
   user_id: string;
   name: string;
+  monthly_fee: number | null;
   notes: string | null;
   is_archived: boolean;
 }

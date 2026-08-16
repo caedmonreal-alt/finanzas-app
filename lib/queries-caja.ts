@@ -248,7 +248,7 @@ export async function getClients(): Promise<Client[]> {
   const supabase = createClient();
   const { data, error } = await supabase.from("clients").select("*").eq("is_archived", false).order("name");
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((c) => ({ ...c, monthly_fee: c.monthly_fee === null ? null : num(c.monthly_fee) }));
 }
 export async function getClientBalances(): Promise<ClientBalance[]> {
   const supabase = createClient();
@@ -305,4 +305,21 @@ export async function getMonthlySpendForProjects(projectIds: string[], months = 
   const { data, error } = await supabase.from("monthly_project_spend").select("project_id, month, spent, fees").in("project_id", projectIds).gte("month", `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-01`);
   if (error) throw error;
   return (data ?? []).map((r) => ({ project_id: r.project_id, month: r.month, spent: num(r.spent), fees: num(r.fees) }));
+}
+
+export interface MonthlyFee { month: string; fee: number; covered: number; uncovered: number }
+export async function getMonthlyFee(months = 12): Promise<MonthlyFee[]> {
+  const supabase = createClient();
+  const from = new Date();
+  from.setMonth(from.getMonth() - (months - 1), 1);
+  const { data, error } = await supabase.from("monthly_fee").select("month, fee, covered, uncovered").gte("month", `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-01`).order("month");
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ month: r.month as string, fee: num(r.fee), covered: num(r.covered), uncovered: num(r.uncovered) }));
+}
+/** Total personal/own draws not yet deducted from any fee (all time) */
+export async function getUncoveredDrawsTotal(): Promise<number> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("monthly_fee").select("uncovered");
+  if (error) throw error;
+  return (data ?? []).reduce((s, r) => s + num(r.uncovered), 0);
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { getCashLedger, getCashOpening, getProjects, getPersonBalances, getPeople, getCashCounts } from "@/lib/queries-caja";
+import { getCashLedger, getCashOpening, getProjects, getPersonBalances, getPeople, getCashCounts, getClients, getClientBalances, getUncoveredDrawsTotal, getMonthlyFee } from "@/lib/queries-caja";
 import { monthKey, parseMonthKey, monthLabel, dayLabel, todayISO } from "@/lib/dates";
 import { cn, formatMXN, formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
@@ -17,14 +17,23 @@ export const dynamic = "force-dynamic";
 export default async function CajaPage({ searchParams }: { searchParams: { mes?: string } }) {
   const { year, month } = parseMonthKey(searchParams.mes);
   const key = `${year}-${String(month).padStart(2, "0")}`;
-  const [rows, opening, projects, balances, people, counts] = await Promise.all([
+  const [rows, opening, projects, balances, people, counts, clients, clientBalances, uncoveredDraws, feeRows] = await Promise.all([
     getCashLedger(key),
     getCashOpening(key),
     getProjects(),
     getPersonBalances(),
     getPeople(),
     getCashCounts(1),
+    getClients(),
+    getClientBalances(),
+    getUncoveredDrawsTotal(),
+    getMonthlyFee(1),
   ]);
+  const fundOf = (id: string) => { const b = clientBalances.find((x) => x.client_id === id); return b ? b.received - b.applied - b.petty_pending - b.loans_out : 0; };
+  const fundsTotal = clients.reduce((s, c) => s + fundOf(c.id), 0);
+  const agreedFee = clients.reduce((s, c) => s + (c.monthly_fee ?? 0), 0);
+  const curFee = feeRows.find((r) => r.month === `${key}-01`) ?? { fee: 0, covered: 0, uncovered: 0 };
+  const feePending = agreedFee ? Math.max(0, agreedFee - curFee.fee - curFee.uncovered) : null;
   const colorOf = projectColor(projects);
   rows.forEach((r) => {
     if (r.project && r.project_id) r.project.color = colorOf(r.project_id);
@@ -97,8 +106,25 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
         <Kpi label="Por comprobar" value={formatMXN(totalPending)} foot={pending.length ? `${pending.length} persona${pending.length > 1 ? "s" : ""} con caja chica` : "Nada pendiente"} href="/personas" />
         <Kpi label="Préstamos por cobrar" value={formatMXN(totalLoans)} foot={loans.length ? `${loans.length} préstamo${loans.length > 1 ? "s" : ""} activos` : "Ninguno"} href="/prestamos" />
         <Kpi label="Gasto de obras" value={formatMXN(projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "obra").reduce((s, p) => s + p.total, 0))} foot="Salidas del mes en obras" href="/proyectos" />
-        <Kpi label="Gasto personal" value={formatMXN(projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "personal").reduce((s, p) => s + p.total, 0))} foot={tOut ? `${((projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "personal").reduce((s, p) => s + p.total, 0) / tOut) * 100).toFixed(0)} % de las salidas` : "—"} href="/dashboard" />
+        <Kpi label="Mi pago · pendiente de retirar" value={feePending === null ? formatMXN(curFee.fee - curFee.covered) : formatMXN(feePending)} foot={feePending === null ? "retirado este mes · captura el acordado en el cliente" : `acordado ${formatMXN(agreedFee)} · adelantos por descontar ${formatMXN(curFee.uncovered)}`} href="/mi-pago" />
       </div>
+
+      {clients.length > 0 && (
+        <Card className="mt-4 px-6 py-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-[15px] font-semibold">¿De quién es el efectivo?</h2>
+            <span className="text-[12.5px] text-muted-foreground">El efectivo en caja no es igual al saldo de un cliente: junta varios fondos y descuenta tus adelantos.</span>
+          </div>
+          <ul className="mt-2 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+            {clients.map((c) => (
+              <li key={c.id} className="flex items-center justify-between text-[13.5px]"><Link href={`/clientes/${c.id}`} className="text-muted-foreground hover:underline">Fondo de {c.name}</Link><span className={cn("font-medium tabular", fundOf(c.id) < 0 && "text-danger")}>{formatMXN(fundOf(c.id))}</span></li>
+            ))}
+            {uncoveredDraws > 0 && <li className="flex items-center justify-between text-[13.5px]"><Link href="/mi-pago" className="text-muted-foreground hover:underline">− Adelantos de mi pago sin descontar</Link><span className="font-medium tabular text-warning">−{formatMXN(uncoveredDraws)}</span></li>}
+            <li className="flex items-center justify-between text-[13.5px]"><span className="text-muted-foreground">Tuyo / otros (resto)</span><span className="font-medium tabular">{formatMXN(closing - fundsTotal + uncoveredDraws)}</span></li>
+            <li className="flex items-center justify-between border-t border-border pt-1 text-[14px] font-semibold sm:col-span-2"><span>= Efectivo en caja</span><span className="tabular">{formatMXN(closing)}</span></li>
+          </ul>
+        </Card>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-start">
         {/* Ledger */}
