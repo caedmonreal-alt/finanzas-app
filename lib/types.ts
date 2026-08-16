@@ -89,6 +89,7 @@ export interface Project {
   status: ProjectStatus;
   color: string | null;
   client_id: string | null;
+  deduct_from_fee: boolean;
   client_name: string | null;
   contract_total: number | null;
   installment_amount: number | null;

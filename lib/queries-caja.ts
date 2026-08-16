@@ -271,3 +271,38 @@ export async function getYearProjectSpend(year: number): Promise<ProjectMonthSpe
   if (error) throw error;
   return (data ?? []).map((r) => ({ project_id: r.project_id, month: r.month, spent: num(r.spent), fees: num(r.fees) }));
 }
+
+export async function getClient(id: string): Promise<Client | null> {
+  const supabase = createClient();
+  const { data } = await supabase.from("clients").select("*").eq("id", id).maybeSingle();
+  return data ?? null;
+}
+/** Ledger of a client: explicit client_id rows + rows of its projects. */
+export async function getClientLedger(clientId: string, projectIds: string[], limit = 400): Promise<LedgerRow[]> {
+  const supabase = createClient();
+  const a = supabase.from("transactions").select(LEDGER_SELECT).eq("client_id", clientId).order("date", { ascending: false }).limit(limit);
+  const b = projectIds.length ? supabase.from("transactions").select(LEDGER_SELECT).in("project_id", projectIds).is("client_id", null).order("date", { ascending: false }).limit(limit) : Promise.resolve({ data: [], error: null });
+  const [ra, rb] = await Promise.all([a, b]);
+  if (ra.error) throw ra.error;
+  if (rb.error) throw rb.error;
+  const rows = mapLedger([...(ra.data ?? []), ...(rb.data ?? [])]);
+  rows.sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0));
+  return rows;
+}
+export async function getMonthlyClientReceived(clientId: string, months = 12) {
+  const supabase = createClient();
+  const from = new Date();
+  from.setMonth(from.getMonth() - (months - 1), 1);
+  const { data, error } = await supabase.from("monthly_client_received").select("month, received").eq("client_id", clientId).gte("month", `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-01`).order("month");
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ month: r.month as string, received: num(r.received) }));
+}
+export async function getMonthlySpendForProjects(projectIds: string[], months = 12): Promise<ProjectMonthSpend[]> {
+  if (!projectIds.length) return [];
+  const supabase = createClient();
+  const from = new Date();
+  from.setMonth(from.getMonth() - (months - 1), 1);
+  const { data, error } = await supabase.from("monthly_project_spend").select("project_id, month, spent, fees").in("project_id", projectIds).gte("month", `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-01`);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ project_id: r.project_id, month: r.month, spent: num(r.spent), fees: num(r.fees) }));
+}

@@ -12,10 +12,12 @@ export const dynamic = "force-dynamic";
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
-export default async function ResumenPage({ searchParams }: { searchParams: { anio?: string } }) {
+export default async function ResumenPage({ searchParams }: { searchParams: { anio?: string; cliente?: string } }) {
   const year = Number(searchParams.anio) || new Date().getFullYear();
-  const [projects, spend, clients, clientBalances] = await Promise.all([getProjects(true), getYearProjectSpend(year), getClients(), getClientBalances()]);
-  const colorOf = projectColor(projects);
+  const clientFilter = searchParams.cliente ?? "";
+  const [allProjects, spend, clients, clientBalances] = await Promise.all([getProjects(true), getYearProjectSpend(year), getClients(), getClientBalances()]);
+  const projects = clientFilter ? allProjects.filter((p) => p.client_id === clientFilter) : allProjects;
+  const colorOf = projectColor(allProjects);
   const now = new Date();
   const lastMonth = year === now.getFullYear() ? now.getMonth() : year < now.getFullYear() ? 11 : -1;
 
@@ -33,15 +35,21 @@ export default async function ResumenPage({ searchParams }: { searchParams: { an
   const grand = all.reduce((s, p) => s + rowTotal(p.id), 0);
   const obrasTotal = groups.find((g) => g.title === "Obras")?.list.reduce((s, p) => s + rowTotal(p.id), 0) ?? 0;
   const monthsElapsed = lastMonth + 1;
-  const receivedYear = clientBalances.reduce((s, b) => s + b.received, 0);
+  const receivedYear = clientBalances.filter((b) => !clientFilter || b.client_id === clientFilter).reduce((s, b) => s + b.received, 0);
 
   return (
     <>
       <PageHeader title="Resumen anual" subtitle={`Gasto acumulado ${year} · obras ${formatMXN(obrasTotal)} · total ${formatMXN(grand)}`}>
+        {clients.length > 1 && (
+          <div className="flex flex-wrap gap-1.5">
+            <Link href={`/resumen?anio=${year}`} className={cn("h-10 rounded-xl bg-card px-3 text-[13.5px] font-medium leading-10 shadow-card", !clientFilter && "bg-accent text-white")}>Todos</Link>
+            {clients.map((c) => <Link key={c.id} href={`/resumen?anio=${year}&cliente=${c.id}`} className={cn("h-10 rounded-xl bg-card px-3 text-[13.5px] font-medium leading-10 shadow-card", clientFilter === c.id && "bg-accent text-white")}>{c.name}</Link>)}
+          </div>
+        )}
         <div className="flex items-center rounded-2xl bg-card p-1 shadow-card">
-          <Link href={`/resumen?anio=${year - 1}`} className="grid h-10 w-10 place-items-center rounded-xl text-accent hover:bg-card-2">‹</Link>
+          <Link href={`/resumen?anio=${year - 1}${clientFilter ? `&cliente=${clientFilter}` : ""}`} className="grid h-10 w-10 place-items-center rounded-xl text-accent hover:bg-card-2">‹</Link>
           <span className="min-w-[80px] text-center text-[15px] font-semibold">{year}</span>
-          <Link href={`/resumen?anio=${year + 1}`} className={cn("grid h-10 w-10 place-items-center rounded-xl text-accent hover:bg-card-2", year >= now.getFullYear() && "pointer-events-none opacity-30")}>›</Link>
+          <Link href={`/resumen?anio=${year + 1}${clientFilter ? `&cliente=${clientFilter}` : ""}`} className={cn("grid h-10 w-10 place-items-center rounded-xl text-accent hover:bg-card-2", year >= now.getFullYear() && "pointer-events-none opacity-30")}>›</Link>
         </div>
       </PageHeader>
 

@@ -21,6 +21,7 @@ export function ProjectForm({ project, trigger, clients = [] }: { project?: Proj
   const [status, setStatus] = useState<ProjectStatus>(project?.status ?? "ejecucion");
   const [client] = useState(project?.client_name ?? "");
   const [clientId, setClientId] = useState<string>(project?.client_id ?? "");
+  const [deduct, setDeduct] = useState<boolean>(project?.deduct_from_fee ?? false);
   const [contract, setContract] = useState(project?.contract_total ? String(project.contract_total) : "");
   const [installment, setInstallment] = useState(project?.installment_amount ? String(project.installment_amount) : "");
   const [budget, setBudget] = useState(project?.budget_total ? String(project.budget_total) : "");
@@ -29,7 +30,7 @@ export function ProjectForm({ project, trigger, clients = [] }: { project?: Proj
 
   function save() {
     start(async () => {
-      const res = await upsertProject(project?.id ?? null, { name, kind, status, client_name: client, client_id: clientId || null, contract_total: num(contract), installment_amount: num(installment), budget_total: num(budget), notes });
+      const res = await upsertProject(project?.id ?? null, { name, kind, status, client_name: client, client_id: clientId || null, deduct_from_fee: deduct, contract_total: num(contract), installment_amount: num(installment), budget_total: num(budget), notes });
       if (res.error) return setError(res.error);
       setOpen(false);
       router.refresh();
@@ -75,6 +76,10 @@ export function ProjectForm({ project, trigger, clients = [] }: { project?: Proj
                     <div className="space-y-1.5"><Label>Ministración típica</Label><Input inputMode="numeric" value={installment} onChange={(e) => setInstallment(e.target.value)} placeholder="0" /></div>
                   </div>
                   <p className="text-[12px] text-muted-foreground">Con presupuesto verás el avance financiero; con monto contratado y ministración típica, cuántas ministraciones te faltan por recibir.</p>
+                  <label className="flex cursor-pointer items-start gap-2 rounded-xl bg-card-2 p-3 text-[13px]">
+                    <input type="checkbox" checked={deduct} onChange={(e) => setDeduct(e.target.checked)} className="mt-0.5 accent-[#0A84FF]" />
+                    <span><b>Proyecto propio:</b> sus gastos se descuentan de “Mi pago” (como Casa Alba I o Casa magisterial). Normalmente sin cliente.</span>
+                  </label>
                 </>
               )}
               <div className="space-y-1.5"><Label>Notas</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} /></div>

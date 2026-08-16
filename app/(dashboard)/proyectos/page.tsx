@@ -51,7 +51,7 @@ export default async function ProyectosPage() {
             <>
               <div className="mt-3 grid grid-cols-3 gap-2 text-[12px] text-muted-foreground">
                 <div><div>Ministrado directo</div><div className="text-[13.5px] font-semibold text-foreground tabular">{received ? formatMXN(received) : "—"}</div></div>
-                <div><div>Cliente</div><div className="truncate text-[13.5px] font-semibold text-foreground">{clients.find((c) => c.id === p.client_id)?.name ?? "—"}</div></div>
+                <div><div>{p.deduct_from_fee ? "Propio" : "Cliente"}</div><div className="truncate text-[13.5px] font-semibold text-foreground">{p.deduct_from_fee ? "se descuenta de mi pago" : clients.find((c) => c.id === p.client_id)?.name ?? "—"}</div></div>
                 <div><div>Presupuesto</div><div className="text-[13.5px] font-semibold text-foreground tabular">{budget ? formatMXN(budget) : "—"}</div></div>
               </div>
               {budget > 0 && (
@@ -101,7 +101,7 @@ export default async function ProyectosPage() {
                 <Card key={c.id} className="px-5 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-[16px] font-semibold">{c.name}</div>
+                      <Link href={`/clientes/${c.id}`} className="text-[16px] font-semibold hover:underline">{c.name} →</Link>
                       <div className="text-[12px] text-muted-foreground">{projects.filter((p) => p.client_id === c.id).length} obras · ministraciones entran aquí y se aplican por obra</div>
                     </div>
                     <ClientForm clients={clients} client={c} />

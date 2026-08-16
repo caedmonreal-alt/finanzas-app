@@ -26,6 +26,7 @@ export interface ProjectInput {
   status: ProjectStatus;
   client_name?: string;
   client_id?: string | null;
+  deduct_from_fee?: boolean;
   contract_total?: number | null;
   installment_amount?: number | null;
   budget_total?: number | null;
@@ -42,6 +43,7 @@ export async function upsertProject(id: string | null, input: ProjectInput): Pro
     status: input.status,
     client_name: input.client_name?.trim() || null,
     client_id: input.client_id ?? null,
+    deduct_from_fee: !!input.deduct_from_fee || input.kind === "personal",
     contract_total: input.contract_total || null,
     installment_amount: input.installment_amount || null,
     budget_total: input.budget_total || null,
@@ -163,4 +165,13 @@ export async function upsertClient(id: string | null, input: { name: string; not
   if (error) return { error: error.message.includes("duplicate") ? "Ya existe un cliente con ese nombre." : error.message };
   reval();
   return { id: data.id };
+}
+
+export async function assignProjectClient(projectId: string, clientId: string | null): Promise<Result> {
+  const { supabase } = await uid();
+  const { error } = await supabase.from("projects").update({ client_id: clientId }).eq("id", projectId);
+  if (error) return { error: error.message };
+  reval();
+  revalidatePath("/clientes/[id]", "page");
+  return { id: projectId };
 }

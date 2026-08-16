@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import { createTransaction, updateTransaction, deleteTransaction, previewFeeSplit, createFeeSplit, deleteSplitGroup, type FeeBasis, type FeeSplitPreviewRow } from "@/lib/actions/transactions";
+import { createTransaction, updateTransaction, deleteTransaction, previewFeeSplit, createFeeSplit, deleteSplitGroup, getUncoveredPersonalDraws, type FeeBasis, type FeeSplitPreviewRow } from "@/lib/actions/transactions";
 import { todayISO } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,8 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
   const [feeBasis, setFeeBasis] = useState<FeeBasis>("prev_month");
   const [feePreview, setFeePreview] = useState<FeeSplitPreviewRow[]>([]);
   const [loanFromClient, setLoanFromClient] = useState(false);
+  const [deductPersonal, setDeductPersonal] = useState(true);
+  const [draws, setDraws] = useState<{ total: number; count: number } | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -151,8 +153,9 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
     const value = Number(amount.replace(/[^0-9.]/g, ""));
     if (!value) return setFeePreview([]);
     const h = setTimeout(async () => {
-      const res = await previewFeeSplit(clientId, value, feeBasis, date);
+      const [res, d] = await Promise.all([previewFeeSplit(clientId, value, feeBasis, date), getUncoveredPersonalDraws(date)]);
       setFeePreview(res.rows);
+      setDraws({ total: d.total, count: d.count });
       if (res.error) setError(res.error);
     }, 250);
     return () => clearTimeout(h);
@@ -169,9 +172,9 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
     if (feeMode) {
       if (!clientId) return setError("Elige el cliente.");
       start(async () => {
-        const res = await createFeeSplit({ client_id: clientId, amount: value, basis: feeBasis, date, account_id: accountId, note });
+        const res = await createFeeSplit({ client_id: clientId, amount: value, basis: feeBasis, date, account_id: accountId, note, deductPersonal });
         if (res.error) return setError(res.error);
-        setToast(`Mi pago de ${formatMXN(value)} repartido en ${res.count} obras`);
+        setToast(`Mi pago de ${formatMXN(value)} repartido en ${res.count} obras${res.withdrawn !== undefined && res.withdrawn !== value ? ` · retiras ${formatMXN(res.withdrawn)}` : ""}`);
         setTimeout(() => setToast(null), 2600);
         onClose();
         router.refresh();
@@ -346,6 +349,16 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
                   </ul>
                 )}
                 {feePreview.length === 0 && <p className="mt-2 text-[12.5px] text-muted-foreground">Escribe el monto para ver el reparto.</p>}
+                {draws && draws.total > 0 && (() => { const value = Number(amount.replace(/[^0-9.]/g, "")) || 0; const covered = Math.min(draws.total, value); return (
+                  <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl bg-card p-2.5 text-[13px]">
+                    <input type="checkbox" checked={deductPersonal} onChange={(e) => setDeductPersonal(e.target.checked)} className="mt-0.5 accent-[#0A84FF]" />
+                    <span>
+                      <b>Descontar gastos propios del mes:</b> ya tomaste <b>{formatMXN(draws.total)}</b> de la caja en {draws.count} gastos personales / de proyectos propios (Casa Alba I, Casa magisterial).
+                      {deductPersonal && value > 0 && <span className="block text-muted-foreground">Tu pago {formatMXN(value)} − {formatMXN(covered)} = <b className="text-foreground">retiras {formatMXN(value - covered)}</b>. El cliente sí lleva los {formatMXN(value)} completos.</span>}
+                    </span>
+                  </label>
+                ); })()}
+                {draws && draws.total === 0 && <p className="mt-2 text-[12px] text-muted-foreground">Sin gastos personales pendientes de descontar este mes.</p>}
               </div>
             )}
 

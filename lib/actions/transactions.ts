@@ -214,7 +214,7 @@ export async function previewFeeSplit(clientId: string, amount: number, basis: F
 }
 
 /** Writes one transaction per obra, linked by split_group. */
-export async function createFeeSplit(input: { client_id: string; amount: number; basis: FeeBasis; date: string; account_id: string; note: string }): Promise<{ error?: string; count?: number }> {
+export async function createFeeSplit(input: { client_id: string; amount: number; basis: FeeBasis; date: string; account_id: string; note: string; deductPersonal?: boolean }): Promise<{ error?: string; count?: number; withdrawn?: number }> {
   const supabase = createClient();
   const {
     data: { user },
@@ -241,15 +241,65 @@ export async function createFeeSplit(input: { client_id: string; amount: number;
     }));
   const { error } = await supabase.from("transactions").insert(rows);
   if (error) return { error: error.message };
+
+  // Net of personal draws: the personal expenses already left the cash box, so we add an
+  // offsetting inflow for that amount (linked to the same split_group) and mark them covered.
+  let withdrawn = input.amount;
+  if (input.deductPersonal) {
+    const draws = await getUncoveredPersonalDraws(input.date);
+    const covered = Math.min(draws.total, input.amount);
+    if (covered > 0) {
+      const { data: personal } = await supabase.from("projects").select("id").eq("kind", "personal").limit(1).maybeSingle();
+      const { error: e2 } = await supabase.from("transactions").insert({
+        user_id: user.id,
+        account_id: input.account_id,
+        project_id: personal?.id ?? null,
+        movement_type: "otro_ingreso",
+        split_group: group,
+        amount: covered,
+        date: input.date,
+        note: `${label} · cubre gastos personales del mes (${draws.count} mov.)`,
+      });
+      if (e2) return { error: e2.message };
+      await supabase.from("transactions").update({ covered_by_fee: group }).in("id", draws.ids);
+      withdrawn = input.amount - covered;
+    }
+  }
   revalidateAll();
-  return { count: rows.length };
+  return { count: rows.length, withdrawn };
 }
 
 /** Deletes every line of a prorated fee. */
 export async function deleteSplitGroup(group: string): Promise<Result> {
   const supabase = createClient();
+  await supabase.from("transactions").update({ covered_by_fee: null }).eq("covered_by_fee", group);
   const { error } = await supabase.from("transactions").delete().eq("split_group", group);
   if (error) return { error: error.message };
   revalidateAll();
   return { id: group };
+}
+
+/** Personal expenses paid from cash in the fee's month that are not yet covered by a fee. */
+export async function getUncoveredPersonalDraws(date: string): Promise<{ total: number; count: number; ids: string[] }> {
+  const supabase = createClient();
+  const y = Number(date.slice(0, 4)), m = Number(date.slice(5, 7));
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const to = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
+  const { data: personal } = await supabase.from("projects").select("id").eq("deduct_from_fee", true);
+  const ids = (personal ?? []).map((p) => p.id);
+  if (!ids.length) return { total: 0, count: 0, ids: [] };
+  const { data } = await supabase
+    .from("transactions")
+    .select("id, amount, account:accounts!transactions_account_id_fkey(type)")
+    .in("project_id", ids)
+    .lt("amount", 0)
+    .in("movement_type", ["gasto", "pago"])
+    .is("covered_by_fee", null)
+    .gte("date", from)
+    .lte("date", to);
+  const rows = (data ?? []).filter((r) => {
+    const acc = Array.isArray(r.account) ? r.account[0] : r.account;
+    return acc?.type === "cash";
+  });
+  return { total: rows.reduce((s, r) => s - Number(r.amount), 0), count: rows.length, ids: rows.map((r) => r.id) };
 }
