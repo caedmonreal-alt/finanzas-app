@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProject, getProjectTotals, getProjectLedger, getProofs, getMonthlyProjectTotals, getProjects } from "@/lib/queries-caja";
+import { getProject, getProjectTotals, getProjectLedger, getProofs, getMonthlyProjectTotals, getProjects, getClients, getClientBalances } from "@/lib/queries-caja";
 import { formatMXN, formatDate, cn } from "@/lib/utils";
 import { PROJECT_STATUS_LABEL, PROJECT_KIND_LABEL } from "@/lib/types";
 import { PageHeader } from "@/components/page-header";
@@ -16,7 +16,10 @@ export const dynamic = "force-dynamic";
 export default async function ProyectoPage({ params }: { params: { id: string } }) {
   const project = await getProject(params.id);
   if (!project) notFound();
-  const [totals, ledger, proofs, monthly, projects] = await Promise.all([getProjectTotals(), getProjectLedger(project.id), getProofs({ projectId: project.id }), getMonthlyProjectTotals(project.id, 6), getProjects()]);
+  const [totals, ledger, proofs, monthly, projects, clients, clientBalances] = await Promise.all([getProjectTotals(), getProjectLedger(project.id), getProofs({ projectId: project.id }), getMonthlyProjectTotals(project.id, 6), getProjects(), getClients(), getClientBalances()]);
+  const client = clients.find((c) => c.id === project.client_id) ?? null;
+  const cb = client ? clientBalances.find((b) => b.client_id === client.id) : null;
+  const clientAvailable = cb ? cb.received - cb.applied - cb.petty_pending : null;
   const color = projectColor(projects)(project.id);
   ledger.forEach((r) => { if (r.project) r.project.color = color; });
   const t = totals.find((x) => x.project_id === project.id);
@@ -26,7 +29,6 @@ export default async function ProyectoPage({ params }: { params: { id: string } 
   const pctBudget = budget ? (spent / budget) * 100 : 0;
   const pctContract = contract ? (received / contract) * 100 : 0;
   const remainingInst = contract && project.installment_amount ? Math.max(0, Math.ceil((contract - received) / project.installment_amount)) : null;
-  const available = received - spent - petty;
   const maxMonth = Math.max(1, ...monthly.map((m) => Math.max(m.income, m.expense)));
 
   // spend breakdown by concept (top notes)
@@ -45,15 +47,15 @@ export default async function ProyectoPage({ params }: { params: { id: string } 
         subtitle={`${project.kind === "obra" ? PROJECT_STATUS_LABEL[project.status] : PROJECT_KIND_LABEL[project.kind]}${project.client_name ? ` · ${project.client_name}` : ""}`}
       >
         <Link href="/proyectos" className="text-[14px] font-medium text-accent hover:underline">← Proyectos</Link>
-        <ProjectForm project={project} />
+        <ProjectForm project={project} clients={clients} />
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <K label="Gastado" value={formatMXN(spent)} foot={`directo ${formatMXN(spent - proved)} · comprobado ${formatMXN(proved)}`} />
         {project.kind === "obra" ? (
           <>
-            <K label="Recibido del cliente" value={formatMXN(received)} foot={contract ? `${pctContract.toFixed(0)} % de ${formatMXN(contract)}` : "Sin monto contratado"} />
-            <K label={available >= 0 ? "Disponible" : "Puesto de mi bolsa"} value={formatMXN(Math.abs(available))} foot={`recibido − gastado − caja chica sin comprobar (${formatMXN(petty - proved)})`} cls={available >= 0 ? "text-positive" : "text-danger"} />
+            <K label={client ? `Fondo de ${client.name}` : "Recibido directo"} value={client && clientAvailable !== null ? formatMXN(Math.abs(clientAvailable)) : formatMXN(received)} foot={client && cb ? `${clientAvailable! >= 0 ? "disponible" : "puesto de mi bolsa"} · recibido ${formatMXN(cb.received)} · aplicado ${formatMXN(cb.applied + cb.petty_pending)}` : contract ? `${pctContract.toFixed(0)} % de ${formatMXN(contract)}` : "Sin cliente asignado"} cls={client && clientAvailable !== null ? (clientAvailable >= 0 ? "text-positive" : "text-danger") : undefined} />
+            <K label="Aplicado a esta obra" value={formatMXN(spent + (petty - proved))} foot={`gastado ${formatMXN(spent)} + caja chica sin comprobar ${formatMXN(petty - proved)}${cb && cb.received ? ` · ${(((spent + petty - proved) / cb.received) * 100).toFixed(0)} % del fondo` : ""}`} />
             <K label="Ministraciones por recibir" value={remainingInst === null ? "—" : String(remainingInst)} foot={project.installment_amount ? `de ${formatMXN(project.installment_amount)} · faltan ${formatMXN(Math.max(0, contract - received))}` : "Captura monto contratado y ministración típica"} />
           </>
         ) : (

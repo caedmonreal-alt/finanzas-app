@@ -12,6 +12,7 @@ export interface TransactionInput {
   project_id?: string | null;
   person_id?: string | null;
   person_name?: string | null; // free text → creates the person if needed
+  client_id?: string | null;
   movement_type?: MovementType;
   date: string; // YYYY-MM-DD
   note: string;
@@ -75,6 +76,7 @@ export async function createTransaction(input: TransactionInput): Promise<Result
       account_id: input.account_id,
       category_id: input.category_id,
       project_id: input.project_id ?? null,
+      client_id: input.client_id ?? null,
       person_id: person.id,
       movement_type: type,
       amount: signed,
@@ -106,6 +108,7 @@ export async function updateTransaction(id: string, input: TransactionInput): Pr
       account_id: input.account_id,
       category_id: input.category_id,
       project_id: input.project_id ?? null,
+      client_id: input.client_id ?? null,
       person_id: person.id,
       movement_type: type,
       amount: signed,
@@ -146,6 +149,7 @@ export async function createTransactionsBulk(rows: TransactionInput[]): Promise<
       account_id: input.account_id,
       category_id: input.category_id,
       project_id: input.project_id ?? null,
+      client_id: input.client_id ?? null,
       person_id: person.id,
       movement_type: type,
       amount: signed,

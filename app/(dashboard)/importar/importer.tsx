@@ -7,7 +7,7 @@ import { monthKey } from "@/lib/dates";
 import { formatMXN } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { MOVEMENT_TYPES, type MovementType, type Project, type Person } from "@/lib/types";
+import { MOVEMENT_TYPES, type MovementType, type Project, type Person, type Client } from "@/lib/types";
 
 interface ParsedRow { key: number; day: number; amount: number; concept: string; project_id: string; movement_type: MovementType; person: string; include: boolean }
 
@@ -72,7 +72,7 @@ function guessType(concept: string, dir: "out" | "in", people: Person[]): { type
   return { type: "gasto", person: "" };
 }
 
-export function Importer({ projects, people, accounts }: { projects: Project[]; people: Person[]; accounts: { id: string; name: string }[] }) {
+export function Importer({ projects, people, accounts, clients }: { projects: Project[]; people: Person[]; accounts: { id: string; name: string }[]; clients: Client[] }) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [dir, setDir] = useState<"out" | "in">("out");
@@ -121,7 +121,8 @@ export function Importer({ projects, people, accounts }: { projects: Project[]; 
       amount: r.amount,
       account_id: accountId,
       category_id: null,
-      project_id: r.project_id || null,
+      project_id: r.movement_type === "ministracion" ? null : r.project_id || null,
+      client_id: r.movement_type === "ministracion" ? clients[0]?.id ?? null : null,
       person_name: r.person || null,
       movement_type: r.movement_type,
       date: `${month}-${String(r.day).padStart(2, "0")}`,

@@ -25,6 +25,7 @@ export interface ProjectInput {
   kind: ProjectKind;
   status: ProjectStatus;
   client_name?: string;
+  client_id?: string | null;
   contract_total?: number | null;
   installment_amount?: number | null;
   budget_total?: number | null;
@@ -40,6 +41,7 @@ export async function upsertProject(id: string | null, input: ProjectInput): Pro
     kind: input.kind,
     status: input.status,
     client_name: input.client_name?.trim() || null,
+    client_id: input.client_id ?? null,
     contract_total: input.contract_total || null,
     installment_amount: input.installment_amount || null,
     budget_total: input.budget_total || null,
@@ -141,6 +143,24 @@ export async function createCashCount(input: { date: string; expected: number; c
     });
     if (e2) return { error: e2.message };
   }
+  reval();
+  return { id: data.id };
+}
+
+/* ---------- clients ---------- */
+export async function upsertClient(id: string | null, input: { name: string; notes?: string }): Promise<Result> {
+  const { supabase, userId } = await uid();
+  if (!userId) return { error: "Sesión expirada." };
+  const name = input.name.trim();
+  if (!name) return { error: "Escribe un nombre." };
+  if (id) {
+    const { error } = await supabase.from("clients").update({ name, notes: input.notes?.trim() || null }).eq("id", id);
+    if (error) return { error: error.message };
+    reval();
+    return { id };
+  }
+  const { data, error } = await supabase.from("clients").insert({ user_id: userId, name, notes: input.notes?.trim() || null }).select("id").single();
+  if (error) return { error: error.message.includes("duplicate") ? "Ya existe un cliente con ese nombre." : error.message };
   reval();
   return { id: data.id };
 }

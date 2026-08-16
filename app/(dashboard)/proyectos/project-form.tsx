@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { PROJECT_KIND_LABEL, PROJECT_STATUS_LABEL, type Project, type ProjectKind, type ProjectStatus } from "@/lib/types";
+import { PROJECT_KIND_LABEL, PROJECT_STATUS_LABEL, type Project, type ProjectKind, type ProjectStatus, type Client } from "@/lib/types";
 
 /** "Nuevo proyecto" button + sheet, or edit mode when `project` is passed. */
-export function ProjectForm({ project, trigger }: { project?: Project; trigger?: React.ReactNode }) {
+export function ProjectForm({ project, trigger, clients = [] }: { project?: Project; trigger?: React.ReactNode; clients?: Client[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -19,7 +19,8 @@ export function ProjectForm({ project, trigger }: { project?: Project; trigger?:
   const [name, setName] = useState(project?.name ?? "");
   const [kind, setKind] = useState<ProjectKind>(project?.kind ?? "obra");
   const [status, setStatus] = useState<ProjectStatus>(project?.status ?? "ejecucion");
-  const [client, setClient] = useState(project?.client_name ?? "");
+  const [client] = useState(project?.client_name ?? "");
+  const [clientId, setClientId] = useState<string>(project?.client_id ?? "");
   const [contract, setContract] = useState(project?.contract_total ? String(project.contract_total) : "");
   const [installment, setInstallment] = useState(project?.installment_amount ? String(project.installment_amount) : "");
   const [budget, setBudget] = useState(project?.budget_total ? String(project.budget_total) : "");
@@ -28,7 +29,7 @@ export function ProjectForm({ project, trigger }: { project?: Project; trigger?:
 
   function save() {
     start(async () => {
-      const res = await upsertProject(project?.id ?? null, { name, kind, status, client_name: client, contract_total: num(contract), installment_amount: num(installment), budget_total: num(budget), notes });
+      const res = await upsertProject(project?.id ?? null, { name, kind, status, client_name: client, client_id: clientId || null, contract_total: num(contract), installment_amount: num(installment), budget_total: num(budget), notes });
       if (res.error) return setError(res.error);
       setOpen(false);
       router.refresh();
@@ -62,7 +63,12 @@ export function ProjectForm({ project, trigger }: { project?: Project; trigger?:
               {kind === "obra" && (
                 <>
                   <div className="space-y-1.5"><Label>Estado</Label><div className="flex flex-wrap gap-2">{(Object.keys(PROJECT_STATUS_LABEL) as ProjectStatus[]).map((s) => <button key={s} className={chip(status === s)} onClick={() => setStatus(s)}>{PROJECT_STATUS_LABEL[s]}</button>)}</div></div>
-                  <div className="space-y-1.5"><Label>Cliente (opcional)</Label><Input value={client} onChange={(e) => setClient(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label>Cliente (fondo común)</Label>
+                    <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="h-12 w-full rounded-xl border border-border bg-card-2 px-3 text-[14px]">
+                      <option value="">Sin cliente</option>
+                      {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
                   <div className="grid grid-cols-3 gap-2.5">
                     <div className="space-y-1.5"><Label>Presupuesto de obra</Label><Input inputMode="numeric" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="0" /></div>
                     <div className="space-y-1.5"><Label>Monto contratado</Label><Input inputMode="numeric" value={contract} onChange={(e) => setContract(e.target.value)} placeholder="0" /></div>

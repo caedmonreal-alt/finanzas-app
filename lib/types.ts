@@ -88,6 +88,7 @@ export interface Project {
   kind: ProjectKind;
   status: ProjectStatus;
   color: string | null;
+  client_id: string | null;
   client_name: string | null;
   contract_total: number | null;
   installment_amount: number | null;
@@ -140,3 +141,11 @@ export const MOVEMENT_TYPE_LABEL: Record<MovementType, string> = {
   transferencia: "Transferencia",
   ajuste: "Ajuste de arqueo",
 } as Record<MovementType, string>;
+
+export interface Client {
+  id: string;
+  user_id: string;
+  name: string;
+  notes: string | null;
+  is_archived: boolean;
+}

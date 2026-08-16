@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getProjects, getProjectTotals } from "@/lib/queries-caja";
+import { getProjects, getProjectTotals, getClients, getClientBalances, getClientProjectTotals } from "@/lib/queries-caja";
 import { formatMXN, cn } from "@/lib/utils";
 import { PROJECT_STATUS_LABEL, PROJECT_KIND_LABEL } from "@/lib/types";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { projectColor } from "@/lib/project-colors";
 import { ProjectForm } from "./project-form";
+import { ClientForm } from "./client-form";
 
 export const metadata: Metadata = { title: "Proyectos" };
 export const dynamic = "force-dynamic";
 
 export default async function ProyectosPage() {
-  const [projects, totals] = await Promise.all([getProjects(), getProjectTotals()]);
+  const [projects, totals, clients, clientBalances, cpt] = await Promise.all([getProjects(), getProjectTotals(), getClients(), getClientBalances(), getClientProjectTotals()]);
   const colorOf = projectColor(projects);
   const tot = new Map(totals.map((t) => [t.project_id, t]));
   const obras = projects.filter((p) => p.kind === "obra");
@@ -23,11 +24,10 @@ export default async function ProyectosPage() {
 
   const Tile = ({ p }: { p: (typeof projects)[number] }) => {
     const t = tot.get(p.id);
-    const spent = t?.spent ?? 0, received = t?.received ?? 0, petty = t?.petty_given ?? 0;
+    const spent = t?.spent ?? 0, received = t?.received ?? 0;
     const budget = p.budget_total ?? 0, contract = p.contract_total ?? 0;
     const pctBudget = budget ? (spent / budget) * 100 : 0;
     const remainingInst = contract && p.installment_amount ? Math.max(0, Math.ceil((contract - received) / p.installment_amount)) : null;
-    const available = received - spent - petty;
     return (
       <Link href={`/proyectos/${p.id}`} className="block">
         <Card className="h-full px-5 py-4 transition-colors hover:bg-card-2/40">
@@ -50,8 +50,8 @@ export default async function ProyectosPage() {
           {p.kind === "obra" && (
             <>
               <div className="mt-3 grid grid-cols-3 gap-2 text-[12px] text-muted-foreground">
-                <div><div>Recibido</div><div className="text-[13.5px] font-semibold text-foreground tabular">{formatMXN(received)}</div></div>
-                <div><div>{available >= 0 ? "Disponible" : "De mi bolsa"}</div><div className={cn("text-[13.5px] font-semibold tabular", available >= 0 ? "text-positive" : "text-danger")}>{formatMXN(Math.abs(available))}</div></div>
+                <div><div>Ministrado directo</div><div className="text-[13.5px] font-semibold text-foreground tabular">{received ? formatMXN(received) : "—"}</div></div>
+                <div><div>Cliente</div><div className="truncate text-[13.5px] font-semibold text-foreground">{clients.find((c) => c.id === p.client_id)?.name ?? "—"}</div></div>
                 <div><div>Presupuesto</div><div className="text-[13.5px] font-semibold text-foreground tabular">{budget ? formatMXN(budget) : "—"}</div></div>
               </div>
               {budget > 0 && (
@@ -83,9 +83,58 @@ export default async function ProyectosPage() {
 
   return (
     <>
-      <PageHeader title="Proyectos" subtitle={`${active.length} obras en ejecución · gastado ${formatMXN(totalSpent)} de ${formatMXN(totalReceived)} recibidos`}>
-        <ProjectForm />
+      <PageHeader title="Proyectos" subtitle={`${active.length} obras en ejecución · gastado ${formatMXN(totalSpent)}${totalReceived ? ` de ${formatMXN(totalReceived)} recibidos` : ""}`}>
+        <ClientForm clients={clients} />
+        <ProjectForm clients={clients} />
       </PageHeader>
+
+      {clients.length > 0 && (
+        <>
+          <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">Fondo de clientes</h2>
+          <div className="mb-6 grid gap-3 lg:grid-cols-2">
+            {clients.map((c) => {
+              const b = clientBalances.find((x) => x.client_id === c.id);
+              const received = b?.received ?? 0, applied = b?.applied ?? 0, pettyPending = b?.petty_pending ?? 0, noProj = b?.applied_no_project ?? 0;
+              const available = received - applied - pettyPending;
+              const dist = cpt.filter((x) => x.client_id === c.id && x.applied > 0).map((x) => ({ ...x, project: projects.find((p) => p.id === x.project_id) })).sort((a, b2) => b2.applied - a.applied);
+              return (
+                <Card key={c.id} className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[16px] font-semibold">{c.name}</div>
+                      <div className="text-[12px] text-muted-foreground">{projects.filter((p) => p.client_id === c.id).length} obras · ministraciones entran aquí y se aplican por obra</div>
+                    </div>
+                    <ClientForm clients={clients} client={c} />
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-2xl bg-card-2 px-3 py-2.5"><div className="text-[12px] text-muted-foreground">Recibido</div><div className="mt-0.5 text-[18px] font-bold tabular">{formatMXN(received)}</div></div>
+                    <div className="rounded-2xl bg-card-2 px-3 py-2.5"><div className="text-[12px] text-muted-foreground">Aplicado</div><div className="mt-0.5 text-[18px] font-bold tabular">{formatMXN(applied + pettyPending)}</div>{pettyPending > 0 && <div className="text-[11px] text-muted-foreground">incl. {formatMXN(pettyPending)} caja chica sin comprobar</div>}</div>
+                    <div className={cn("rounded-2xl px-3 py-2.5", available >= 0 ? "bg-positive/10" : "bg-danger/10")}><div className="text-[12px] text-muted-foreground">{available >= 0 ? "Disponible" : "Puesto de mi bolsa"}</div><div className={cn("mt-0.5 text-[18px] font-bold tabular", available >= 0 ? "text-positive" : "text-danger")}>{formatMXN(Math.abs(available))}</div></div>
+                  </div>
+                  {received > 0 && (
+                    <div className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-card-2">
+                      {dist.map((d) => <span key={d.project_id} style={{ flex: d.applied, background: colorOf(d.project_id) }} title={`${d.project?.name}: ${formatMXN(d.applied)}`} />)}
+                      {noProj > 0 && <span style={{ flex: noProj, background: "#8E8E93" }} title={`Sin obra: ${formatMXN(noProj)}`} />}
+                      {available > 0 && <span style={{ flex: available, background: "transparent" }} />}
+                    </div>
+                  )}
+                  {(dist.length > 0 || noProj > 0) && (
+                    <ul className="mt-2 grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                      {dist.map((d) => (
+                        <li key={d.project_id} className="flex items-center justify-between py-1 text-[13px]">
+                          <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(d.project_id) }} />{d.project?.name}</span>
+                          <span className="font-semibold tabular">{formatMXN(d.applied)}<span className="ml-1 font-normal text-muted-foreground">{received ? `${((d.applied / received) * 100).toFixed(0)} %` : ""}</span></span>
+                        </li>
+                      ))}
+                      {noProj > 0 && <li className="flex items-center justify-between py-1 text-[13px]"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#8E8E93]" />Sin obra (contratistas, etc.)</span><span className="font-semibold tabular">{formatMXN(noProj)}</span></li>}
+                    </ul>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
       <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">Obras</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {obras.filter((p) => p.status === "ejecucion").map((p) => <Tile key={p.id} p={p} />)}

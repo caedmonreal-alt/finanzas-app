@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { monthRange, shiftMonth } from "@/lib/dates";
-import type { Project, Person, MovementType } from "@/lib/types";
+import type { Project, Person, MovementType, Client } from "@/lib/types";
 
 export interface LedgerRow {
   id: string;
@@ -8,6 +8,7 @@ export interface LedgerRow {
   category_id: string | null;
   project_id: string | null;
   person_id: string | null;
+  client_id: string | null;
   movement_type: MovementType;
   amount: number;
   date: string;
@@ -110,7 +111,7 @@ export async function getPersonBalances(): Promise<PersonBalance[]> {
 }
 
 const LEDGER_SELECT =
-  "id, account_id, category_id, project_id, person_id, movement_type, amount, date, note, is_recurring, transfer_account_id, account:accounts!transactions_account_id_fkey(name, type), project:projects(name, kind, color), person:people(name), category:categories(name, icon)";
+  "id, account_id, category_id, project_id, person_id, client_id, movement_type, amount, date, note, is_recurring, transfer_account_id, account:accounts!transactions_account_id_fkey(name, type), project:projects(name, kind, color), person:people(name), category:categories(name, icon)";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLedger(rows: any[]): LedgerRow[] {
@@ -220,4 +221,38 @@ export async function getMonthlyProjectTotals(projectId: string, months = 6) {
     .order("month");
   if (error) throw error;
   return (data ?? []).map((r) => ({ month: r.month as string, income: num(r.income), expense: num(r.expense), petty_given: num(r.petty_given) }));
+}
+
+export interface ClientBalance {
+  client_id: string;
+  received: number;
+  applied: number;
+  petty_pending: number;
+  applied_no_project: number;
+  last_date: string | null;
+}
+export interface ClientProjectTotal {
+  client_id: string;
+  project_id: string;
+  applied: number;
+  received_direct: number;
+}
+
+export async function getClients(): Promise<Client[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("clients").select("*").eq("is_archived", false).order("name");
+  if (error) throw error;
+  return data ?? [];
+}
+export async function getClientBalances(): Promise<ClientBalance[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("client_balances").select("*");
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ ...r, received: num(r.received), applied: num(r.applied), petty_pending: num(r.petty_pending), applied_no_project: num(r.applied_no_project) }));
+}
+export async function getClientProjectTotals(): Promise<ClientProjectTotal[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("client_project_totals").select("*");
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ ...r, applied: num(r.applied), received_direct: num(r.received_direct) }));
 }

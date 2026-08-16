@@ -22,6 +22,7 @@ export function MovementRow({ row, running, showProject = true, showDate = false
           project_id: row.project_id,
           person_id: row.person_id,
           person_name: row.person?.name ?? null,
+          client_id: row.client_id,
           movement_type: row.movement_type,
           date: row.date,
           note: row.note,

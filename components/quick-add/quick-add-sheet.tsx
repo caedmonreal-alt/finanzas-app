@@ -7,7 +7,7 @@ import { createTransaction, updateTransaction, deleteTransaction } from "@/lib/a
 import { todayISO } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MOVEMENT_TYPES, type Category, type MovementType, type Project, type Person } from "@/lib/types";
+import { MOVEMENT_TYPES, type Category, type MovementType, type Project, type Person, type Client } from "@/lib/types";
 import type { AccountBalance } from "@/lib/queries";
 
 export interface EditableTransaction {
@@ -18,6 +18,7 @@ export interface EditableTransaction {
   project_id?: string | null;
   person_id?: string | null;
   person_name?: string | null;
+  client_id?: string | null;
   movement_type?: MovementType;
   date: string;
   note: string | null;
@@ -32,6 +33,7 @@ interface Props {
   accounts: AccountBalance[];
   projects: Project[];
   people: Person[];
+  clients: Client[];
   onClose: () => void;
 }
 
@@ -41,7 +43,7 @@ const SPENDING_ACCOUNT_TYPES = ["cash", "debit", "credit"];
  * Registro rápido: Salida/Entrada → monto → concepto → proyecto → tipo (→ persona) → Listo.
  * Categoría solo se pide cuando el proyecto es Personal (alimenta el tablero personal).
  */
-export function QuickAddSheet({ open, initialKind, edit, categories, accounts, projects, people, onClose }: Props) {
+export function QuickAddSheet({ open, initialKind, edit, categories, accounts, projects, people, clients, onClose }: Props) {
   const router = useRouter();
   const [dir, setDir] = useState<"out" | "in">(initialKind === "income" ? "in" : "out");
   const [amount, setAmount] = useState("");
@@ -49,6 +51,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
   const [projectId, setProjectId] = useState<string | null>(null);
   const [type, setType] = useState<MovementType>("gasto");
   const [personName, setPersonName] = useState("");
+  const [clientId, setClientId] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -83,6 +86,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setProjectId(edit.project_id ?? null);
       setType(edit.movement_type ?? (edit.amount < 0 ? "gasto" : "otro_ingreso"));
       setPersonName(edit.person_name ?? "");
+      setClientId(edit.client_id ?? null);
       setCategoryId(edit.category_id);
       setAccountId(edit.account_id);
       setDate(edit.date);
@@ -95,6 +99,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setProjectId(lastProjectRef.current ?? activeProjects[0]?.id ?? null);
       setType(initialKind === "income" ? "otro_ingreso" : "gasto");
       setPersonName("");
+      setClientId(clients[0]?.id ?? null);
       setCategoryId(null);
       setAccountId((prev) => prev || cashAccounts[0]?.account_id || spendingAccounts[0]?.account_id || "");
       setDate(todayISO());
@@ -142,8 +147,9 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       amount: value,
       account_id: accountId,
       category_id: isPersonal ? categoryId : null,
-      project_id: projectId,
       person_name: typeDef?.needsPerson ? personName.trim() : null,
+      client_id: type === "ministracion" || (projectId === null && dir === "out") ? clientId : null,
+      project_id: type === "ministracion" ? null : projectId,
       movement_type: type,
       date,
       note,
@@ -227,15 +233,44 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
               className="h-11 w-full rounded-xl border border-border bg-card-2 px-3 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-accent/50"
             />
 
-            <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Proyecto</div>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {activeProjects.map((p) => (
-                <button key={p.id} type="button" onClick={() => setProjectId(p.id)} className={chip(projectId === p.id)}>
-                  {p.name}
-                  {p.kind === "obra" && p.status !== "ejecucion" && <span className="text-[11px] opacity-70">· {p.status}</span>}
-                </button>
-              ))}
-            </div>
+            {type === "ministracion" ? (
+              <>
+                <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Cliente (fondo común)</div>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {clients.map((c) => (
+                    <button key={c.id} type="button" onClick={() => setClientId(c.id)} className={chip(clientId === c.id)}>
+                      {c.name}
+                    </button>
+                  ))}
+                  {clients.length === 0 && <p className="text-[13px] text-muted-foreground">Crea un cliente en Proyectos.</p>}
+                </div>
+                <p className="mt-1.5 text-[12px] text-muted-foreground">La ministración entra al fondo del cliente; después la aplicas a cada obra con los gastos.</p>
+              </>
+            ) : (
+              <>
+                <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Proyecto</div>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {activeProjects.map((p) => (
+                    <button key={p.id} type="button" onClick={() => setProjectId(p.id)} className={chip(projectId === p.id)}>
+                      {p.name}
+                      {p.kind === "obra" && p.status !== "ejecucion" && <span className="text-[11px] opacity-70">· {p.status}</span>}
+                    </button>
+                  ))}
+                  {dir === "out" && clients.length > 0 && (
+                    <button type="button" onClick={() => setProjectId(null)} className={chip(projectId === null)} title="Se aplica al fondo del cliente sin asignar obra">
+                      Sin obra (fondo del cliente)
+                    </button>
+                  )}
+                </div>
+                {projectId === null && dir === "out" && clients.length > 1 && (
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {clients.map((c) => (
+                      <button key={c.id} type="button" onClick={() => setClientId(c.id)} className={chip(clientId === c.id)}>{c.name}</button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Tipo</div>
             <div className="mt-1.5 flex flex-wrap gap-2">

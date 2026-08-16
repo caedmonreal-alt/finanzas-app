@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountBalances, getCategories } from "@/lib/queries";
-import { getProjects, getPeople } from "@/lib/queries-caja";
+import { getProjects, getPeople, getClients } from "@/lib/queries-caja";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TabBar } from "@/components/layout/tabbar";
 import { QuickAddProvider } from "@/components/quick-add/quick-add-context";
@@ -16,13 +16,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [categories, accounts, projects, people] = await Promise.all([getCategories(), getAccountBalances(), getProjects(), getPeople()]);
+  const [categories, accounts, projects, people, clients] = await Promise.all([getCategories(), getAccountBalances(), getProjects(), getPeople(), getClients()]);
 
   // Theme cookie → data-theme on <html> is set by a tiny inline script to avoid flash.
   const theme = cookies().get("theme")?.value ?? "auto";
 
   return (
-    <QuickAddProvider categories={categories} accounts={accounts} projects={projects} people={people}>
+    <QuickAddProvider categories={categories} accounts={accounts} projects={projects} people={people} clients={clients}>
       <script
         dangerouslySetInnerHTML={{
           __html: `(function(){var t=${JSON.stringify(theme)};if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}})();`,

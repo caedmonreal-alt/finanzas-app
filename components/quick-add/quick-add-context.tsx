@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import type { Category, Project, Person } from "@/lib/types";
+import type { Category, Project, Person, Client } from "@/lib/types";
 import type { AccountBalance } from "@/lib/queries";
 import { QuickAddSheet, type EditableTransaction } from "./quick-add-sheet";
 
@@ -23,12 +23,14 @@ export function QuickAddProvider({
   accounts,
   projects,
   people,
+  clients,
   children,
 }: {
   categories: Category[];
   accounts: AccountBalance[];
   projects: Project[];
   people: Person[];
+  clients: Client[];
   children: React.ReactNode;
 }) {
   const [state, setState] = useState<{ open: boolean; kind: "expense" | "income"; edit: EditableTransaction | null }>({
@@ -65,6 +67,7 @@ export function QuickAddProvider({
         accounts={accounts}
         projects={projects}
         people={people}
+        clients={clients}
         onClose={close}
       />
     </Ctx.Provider>
