@@ -28,8 +28,13 @@ export interface TransactionRow {
   note: string | null;
   is_recurring: boolean;
   transfer_account_id: string | null;
+  project_id: string | null;
+  person_id: string | null;
+  movement_type: string;
   account: { name: string } | null;
   category: { name: string; icon: string | null; kind: "income" | "expense" } | null;
+  project: { name: string; kind: string } | null;
+  person: { name: string } | null;
 }
 
 export interface CategoryMonthTotal {
@@ -88,7 +93,7 @@ export async function getTransactionsForMonth(monthKey: string): Promise<Transac
   const { start, end } = monthRange(monthKey);
   const { data, error } = await supabase
     .from("transactions")
-    .select("id, account_id, category_id, amount, date, note, is_recurring, transfer_account_id, account:accounts!transactions_account_id_fkey(name), category:categories(name, icon, kind)")
+    .select("id, account_id, category_id, amount, date, note, is_recurring, transfer_account_id, project_id, person_id, movement_type, account:accounts!transactions_account_id_fkey(name), category:categories(name, icon, kind), project:projects(name, kind), person:people(name)")
     .gte("date", start)
     .lte("date", end)
     .order("date", { ascending: false })
@@ -100,6 +105,8 @@ export async function getTransactionsForMonth(monthKey: string): Promise<Transac
     amount: Number(r.amount),
     account: Array.isArray(r.account) ? r.account[0] ?? null : r.account,
     category: Array.isArray(r.category) ? r.category[0] ?? null : r.category,
+    project: Array.isArray(r.project) ? r.project[0] ?? null : r.project,
+    person: Array.isArray(r.person) ? r.person[0] ?? null : r.person,
   })) as TransactionRow[];
 }
 

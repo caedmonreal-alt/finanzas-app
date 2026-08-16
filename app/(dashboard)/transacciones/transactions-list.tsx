@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useQuickAdd } from "@/components/quick-add/quick-add-context";
 import { dayLabel } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
-import type { Category } from "@/lib/types";
+import type { Category, MovementType } from "@/lib/types";
 import type { AccountBalance, TransactionRow } from "@/lib/queries";
 
 interface Props {
@@ -122,6 +122,10 @@ export function TransactionsList({ transactions, categories, accounts, isCurrent
                               date: t.date,
                               note: t.note,
                               is_recurring: t.is_recurring,
+                              project_id: t.project_id,
+                              person_id: t.person_id,
+                              person_name: t.person?.name ?? null,
+                              movement_type: t.movement_type as MovementType,
                             })
                           }
                           className="grid w-full grid-cols-[40px_1fr_auto] items-center gap-3 py-2.5 text-left transition-colors hover:bg-card-2/60 rounded-xl px-1 -mx-1"

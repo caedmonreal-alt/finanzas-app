@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import type { Category } from "@/lib/types";
+import type { Category, Project, Person } from "@/lib/types";
 import type { AccountBalance } from "@/lib/queries";
 import { QuickAddSheet, type EditableTransaction } from "./quick-add-sheet";
 
@@ -21,10 +21,14 @@ export function useQuickAdd(): QuickAddApi {
 export function QuickAddProvider({
   categories,
   accounts,
+  projects,
+  people,
   children,
 }: {
   categories: Category[];
   accounts: AccountBalance[];
+  projects: Project[];
+  people: Person[];
   children: React.ReactNode;
 }) {
   const [state, setState] = useState<{ open: boolean; kind: "expense" | "income"; edit: EditableTransaction | null }>({
@@ -59,6 +63,8 @@ export function QuickAddProvider({
         edit={state.edit}
         categories={categories}
         accounts={accounts}
+        projects={projects}
+        people={people}
         onClose={close}
       />
     </Ctx.Provider>

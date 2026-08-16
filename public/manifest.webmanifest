@@ -2,7 +2,7 @@
   "name": "Finanzas",
   "short_name": "Finanzas",
   "description": "Control de finanzas personales",
-  "start_url": "/dashboard",
+  "start_url": "/caja",
   "display": "standalone",
   "background_color": "#F5F5F7",
   "theme_color": "#0A84FF",

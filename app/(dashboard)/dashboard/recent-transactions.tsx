@@ -4,6 +4,7 @@ import { useQuickAdd } from "@/components/quick-add/quick-add-context";
 import { dayLabel } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import type { TransactionRow } from "@/lib/queries";
+import type { MovementType } from "@/lib/types";
 
 export function RecentTransactions({ transactions }: { transactions: TransactionRow[] }) {
   const { openEdit, openNew } = useQuickAdd();
@@ -24,7 +25,7 @@ export function RecentTransactions({ transactions }: { transactions: Transaction
         return (
           <li key={t.id}>
             <button
-              onClick={() => openEdit({ id: t.id, amount: t.amount, account_id: t.account_id, category_id: t.category_id, date: t.date, note: t.note, is_recurring: t.is_recurring })}
+              onClick={() => openEdit({ id: t.id, amount: t.amount, account_id: t.account_id, category_id: t.category_id, date: t.date, note: t.note, is_recurring: t.is_recurring, project_id: t.project_id, person_id: t.person_id, person_name: t.person?.name ?? null, movement_type: t.movement_type as MovementType })}
               className="-mx-1 grid w-full grid-cols-[36px_1fr_auto] items-center gap-3 rounded-xl px-1 py-2 text-left hover:bg-card-2/60"
             >
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-card-2 text-[15px]">{t.category?.icon ?? (positive ? "＋" : "•")}</span>
