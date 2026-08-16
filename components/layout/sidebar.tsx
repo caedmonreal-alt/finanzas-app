@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "./nav-items";
 import { NavIcon } from "./nav-icon";
 import { ThemeToggle } from "./theme-toggle";
+import { QuickAddButton } from "@/components/quick-add/quick-add-button";
 
 export function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
@@ -33,6 +34,7 @@ export function Sidebar({ email }: { email: string }) {
           );
         })}
       </nav>
+      <div className="mt-3 px-1"><QuickAddButton className="w-full" /></div>
       <div className="flex-1" />
       <ThemeToggle />
       <form action="/auth/signout" method="post" className="mt-3 px-1.5">
