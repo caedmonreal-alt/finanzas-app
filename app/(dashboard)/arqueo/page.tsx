@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getCashBalanceAt, getCashCounts } from "@/lib/queries-caja";
+import { getCashBalanceAt, getCashCounts, getMissingUsualConcepts } from "@/lib/queries-caja";
 import { getAccountBalances } from "@/lib/queries";
 import { todayISO } from "@/lib/dates";
 import { formatMXN, formatDate, cn } from "@/lib/utils";
@@ -11,16 +11,16 @@ export const metadata: Metadata = { title: "Arqueo" };
 export const dynamic = "force-dynamic";
 
 export default async function ArqueoPage() {
-  const [expected, counts, accounts] = await Promise.all([getCashBalanceAt(todayISO()), getCashCounts(24), getAccountBalances()]);
+  const [expected, counts, accounts, hints] = await Promise.all([getCashBalanceAt(todayISO()), getCashCounts(24), getAccountBalances(), getMissingUsualConcepts()]);
   const cash = accounts.filter((a) => a.type === "cash");
   return (
     <>
-      <PageHeader title="Arqueo de caja" subtitle="Cuenta el efectivo y compáralo con lo que la app dice que debe haber" />
+      <PageHeader title="¿Cuadra la caja?" subtitle="Cuenta el efectivo y compáralo con lo que debería haber. Hazlo cada fin de semana." />
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr] lg:items-start">
         <Card>
           <CardHeader><CardTitle>Nuevo arqueo</CardTitle><CardDescription>Saldo teórico hoy: <b className="text-foreground">{formatMXN(expected)}</b></CardDescription></CardHeader>
           <CardContent>
-            <CashCountForm expected={expected} cashAccounts={cash.map((a) => ({ id: a.account_id, name: a.name, balance: a.balance }))} />
+            <CashCountForm expected={expected} cashAccounts={cash.map((a) => ({ id: a.account_id, name: a.name, balance: a.balance }))} hints={hints} />
           </CardContent>
         </Card>
         <Card>

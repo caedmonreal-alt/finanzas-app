@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import { createTransaction, updateTransaction, deleteTransaction, previewFeeSplit, createFeeSplit, createSharedExpenseSplit, deleteSplitGroup, getUncoveredPersonalDraws, type FeeBasis, type FeeSplitPreviewRow } from "@/lib/actions/transactions";
+import { createTransaction, updateTransaction, deleteTransaction, previewFeeSplit, createFeeSplit, createSharedExpenseSplit, deleteSplitGroup, getUncoveredPersonalDraws, suggestFromNote, mostUsedProjects, type FeeBasis, type FeeSplitPreviewRow, type Suggestion } from "@/lib/actions/transactions";
 import { todayISO } from "@/lib/dates";
 import { cn, formatMXN } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,12 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
   const [pending, start] = useTransition();
   const amountRef = useRef<HTMLInputElement>(null);
   const lastProjectRef = useRef<string | null>(null);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [topProjects, setTopProjects] = useState<string[]>([]);
+  const [showAllProjects, setShowAllProjects] = useState(false);
+  const [showTypes, setShowTypes] = useState(false);
+  const userTouched = useRef({ project: false, type: false });
+  const [undo, setUndo] = useState<null | { input: Parameters<typeof createTransaction>[0]; label: string }>(null);
 
   const activeProjects = useMemo(
     () => projects.filter((p) => !p.is_archived && (p.status === "ejecucion" || p.kind !== "obra")).concat(projects.filter((p) => !p.is_archived && p.kind === "obra" && p.status !== "ejecucion")),
@@ -118,6 +124,10 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setSharedMode(false);
       setSharedPreview([]);
       sharedTouched.current = false;
+      userTouched.current = { project: false, type: false };
+      setSuggestion(null);
+      setShowAllProjects(false);
+      setShowTypes(false);
       setFeePreview([]);
       setLoanFromClient(false);
       setCategoryId(null);
@@ -127,10 +137,31 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setMore(false);
     }
     setError(null);
+    if (!edit) setShowTypes(false); else setShowTypes(true);
+    mostUsedProjects(5).then(setTopProjects).catch(() => {});
     const t = setTimeout(() => amountRef.current?.focus(), 60);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, edit, initialKind]);
+
+  // Learn from history: when the concept matches previous movements, propose project / type / person
+  useEffect(() => {
+    if (edit || dir !== "out" || feeMode) return;
+    const n = note.trim();
+    if (n.length < 3) { setSuggestion(null); return; }
+    const h = setTimeout(async () => {
+      const sug = await suggestFromNote(n);
+      setSuggestion(sug);
+      if (!sug) return;
+      if (sug.shared && !sharedTouched.current) { setSharedMode(true); return; }
+      if (!userTouched.current.project && sug.project_id) setProjectId(sug.project_id);
+      if (!userTouched.current.type && sug.movement_type) setType(sug.movement_type);
+      if (sug.person_name && !personName) setPersonName(sug.person_name);
+      if (sug.category_id && !categoryId) setCategoryId(sug.category_id);
+    }, 350);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note, dir, edit, feeMode]);
 
   // Keep type consistent with direction
   useEffect(() => {
@@ -246,11 +277,24 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
     start(async () => {
       const res = edit.split_group ? await deleteSplitGroup(edit.split_group) : await deleteTransaction(edit.id);
       if (res.error) return setError(res.error);
-      setToast("Movimiento eliminado");
-      setTimeout(() => setToast(null), 2000);
+      if (!edit.split_group) {
+        setUndo({
+          label: `${formatMXN(Math.abs(edit.amount))}${edit.note ? ` · ${edit.note}` : ""}`,
+          input: { kind: edit.amount < 0 ? "expense" : "income", amount: Math.abs(edit.amount), account_id: edit.account_id, category_id: edit.category_id, project_id: edit.project_id ?? null, person_name: edit.person_name ?? null, client_id: edit.client_id ?? null, movement_type: edit.movement_type, date: edit.date, note: edit.note ?? "", is_recurring: edit.is_recurring },
+        });
+        setTimeout(() => setUndo(null), 6000);
+      } else {
+        setToast("Reparto eliminado");
+        setTimeout(() => setToast(null), 2000);
+      }
       onClose();
       router.refresh();
     });
+  }
+  function doUndo() {
+    if (!undo) return;
+    const u = undo; setUndo(null);
+    start(async () => { const r = await createTransaction(u.input); if (!r.error) { setToast("Restaurado"); setTimeout(() => setToast(null), 1500); router.refresh(); } });
   }
 
   const chip = (active: boolean) =>
@@ -307,6 +351,9 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
               placeholder="Concepto (ej. Herrajes, Material Gabriel, Gasolina VW)"
               className="h-11 w-full rounded-xl border border-border bg-card-2 px-3 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-accent/50"
             />
+            {suggestion && !edit && dir === "out" && !feeMode && (
+              <p className="mt-1.5 text-[12px] text-muted-foreground">Sugerido por tus registros ({suggestion.matches}): {suggestion.shared ? "repartir entre obras" : [projects.find((p) => p.id === suggestion.project_id)?.name, MOVEMENT_TYPES.find((t) => t.id === suggestion.movement_type)?.label, suggestion.person_name].filter(Boolean).join(" · ")}.</p>
+            )}
 
             {dir === "out" && !edit && !feeMode && (
               <label className={cn("mt-3 flex cursor-pointer items-start gap-2 rounded-2xl p-3 text-[13px]", sharedMode ? "bg-accent-soft" : "bg-card-2")}>
@@ -336,14 +383,22 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
               <>
                 <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Proyecto</div>
                 <div className="mt-1.5 flex flex-wrap gap-2">
-                  {activeProjects.map((p) => (
-                    <button key={p.id} type="button" onClick={() => setProjectId(p.id)} className={chip(projectId === p.id)}>
-                      {p.name}
-                      {p.kind === "obra" && p.status !== "ejecucion" && <span className="text-[11px] opacity-70">· {p.status}</span>}
-                    </button>
-                  ))}
+                  {(() => {
+                    const top = topProjects.map((id) => activeProjects.find((p) => p.id === id)).filter(Boolean) as Project[];
+                    const base = top.length >= 3 ? top : activeProjects.slice(0, 5);
+                    const visible = showAllProjects ? activeProjects : Array.from(new Set([...base, ...(project ? [project] : [])]));
+                    return visible.map((p) => (
+                      <button key={p.id} type="button" onClick={() => { userTouched.current.project = true; setProjectId(p.id); }} className={chip(projectId === p.id)}>
+                        {p.name}
+                        {p.kind === "obra" && p.status !== "ejecucion" && <span className="text-[11px] opacity-70">· {p.status}</span>}
+                      </button>
+                    ));
+                  })()}
+                  {!showAllProjects && activeProjects.length > 5 && (
+                    <button type="button" onClick={() => setShowAllProjects(true)} className="flex h-10 items-center rounded-xl px-3 text-[14px] font-medium text-accent">más…</button>
+                  )}
                   {dir === "out" && clients.length > 0 && (
-                    <button type="button" onClick={() => setProjectId(null)} className={chip(projectId === null)} title="Se aplica al fondo del cliente sin asignar obra">
+                    (showAllProjects || projectId === null) && <button type="button" onClick={() => { userTouched.current.project = true; setProjectId(null); }} className={chip(projectId === null)} title="Se aplica al fondo del cliente sin asignar obra">
                       Sin obra (fondo del cliente)
                     </button>
                   )}
@@ -358,10 +413,15 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
               </>
             )}
 
-            {!sharedMode && <div className="mt-3 text-[12.5px] font-semibold text-muted-foreground">Tipo</div>}
-            <div className={cn("mt-1.5 flex flex-wrap gap-2", sharedMode && "hidden")}>
+            {!sharedMode && (
+              <div className="mt-3 flex items-baseline gap-2 text-[12.5px] font-semibold text-muted-foreground">
+                Tipo
+                {!showTypes && <button type="button" onClick={() => setShowTypes(true)} className="font-medium text-accent">{feeMode ? "Mi pago (repartido)" : typeDef?.label ?? "Gasto"} · cambiar</button>}
+              </div>
+            )}
+            <div className={cn("mt-1.5 flex flex-wrap gap-2", (sharedMode || !showTypes) && "hidden")}>
               {typeDefs.map((t) => (
-                <button key={t.id} type="button" title={t.hint} onClick={() => { setType(t.id); setFeeMode(false); }} className={chip(type === t.id && !feeMode)}>
+                <button key={t.id} type="button" title={t.hint} onClick={() => { userTouched.current.type = true; setType(t.id); setFeeMode(false); }} className={chip(type === t.id && !feeMode)}>
                   {t.label}
                 </button>
               ))}
@@ -478,7 +538,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
 
             {error && <p className="mt-3 text-[13px] text-danger">{error}</p>}
 
-            <div className="mt-4 flex gap-2.5">
+            <div className="sticky bottom-0 -mx-5 mt-4 flex gap-2.5 border-t border-border bg-card px-5 pt-3 pb-1">
               {edit && (
                 <Button variant="secondary" onClick={remove} disabled={pending} className="text-danger">
                   Eliminar
@@ -492,6 +552,14 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
         </div>
       )}
 
+      {undo && (
+        <div className="fixed inset-x-0 bottom-24 z-[60] flex justify-center lg:bottom-8">
+          <div className="flex items-center gap-3 rounded-2xl bg-foreground px-4 py-3 text-[14px] font-medium text-background shadow-lg animate-in fade-in slide-in-from-bottom-2">
+            Eliminado {undo.label}
+            <button onClick={doUndo} className="rounded-lg bg-background/15 px-2.5 py-1 font-semibold text-accent">Deshacer</button>
+          </div>
+        </div>
+      )}
       {toast && (
         <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[60] flex justify-center lg:bottom-8">
           <div className="rounded-2xl bg-foreground px-4 py-3 text-[14px] font-medium text-background shadow-lg animate-in fade-in slide-in-from-bottom-2">{toast}</div>

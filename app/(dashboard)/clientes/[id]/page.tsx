@@ -46,11 +46,11 @@ export default async function ClientePage({ params }: { params: { id: string } }
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <K label="Recibido" value={formatMXN(rec)} foot={`${ministraciones.length} ministraciones`} />
-        <K label="Aplicado a obras" value={formatMXN(applied - noProj - fees + petty)} foot={petty > 0 ? `incl. ${formatMXN(petty)} caja chica sin comprobar` : "gastos + comprobaciones"} />
-        <K label="Contratistas sin obra" value={formatMXN(noProj)} foot="pagos sin obra asignada" />
+        <K label="Me ha dado" value={formatMXN(rec)} foot={`${ministraciones.length} ministraciones`} />
+        <K label="Gastado en sus obras" value={formatMXN(applied - noProj - fees + petty)} foot={petty > 0 ? `incl. ${formatMXN(petty)} caja chica sin comprobar` : "gastos + comprobaciones"} />
+        <K label="Contratistas sin obra" value={formatMXN(noProj)} foot="pagos que no van a una obra" />
         <K label="Mi pago" value={formatMXN(fees)} foot={rec ? `${((fees / rec) * 100).toFixed(0)} % de lo recibido` : ""} />
-        <K label="Saldo del fondo" value={formatMXN(available)} foot={available >= 0 ? `recibido − aplicado − mi pago${loans > 0 ? ` − ${formatMXN(loans)} prestado` : ""}` : "negativo: puesto de tu bolsa"} cls={available >= 0 ? "text-positive" : "text-danger"} />
+        <K label={`Le queda a ${client.name}`} value={formatMXN(available)} foot={available >= 0 ? `me dio − gastado − mi pago${loans > 0 ? ` − ${formatMXN(loans)} prestado` : ""}` : "negativo: lo puse de mi bolsa"} cls={available >= 0 ? "text-positive" : "text-danger"} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">
@@ -90,7 +90,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Movimientos del fondo</CardTitle><CardDescription>Ministraciones, gastos de sus obras, préstamos autorizados y mi pago</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Todo lo que ha pasado con su dinero</CardTitle><CardDescription>Ministraciones, gastos de sus obras, préstamos con su permiso y mi pago</CardDescription></CardHeader>
             <CardContent>
               {ledger.length === 0 ? <p className="py-4 text-[14px] text-muted-foreground">Sin movimientos.</p> : ledger.slice(0, 150).map((r) => <MovementRow key={r.id} row={r} showDate />)}
             </CardContent>
@@ -99,7 +99,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
 
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>Recibido vs. aplicado</CardTitle><CardDescription>Últimos 12 meses</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Me dio vs. gasté</CardTitle><CardDescription>Últimos 12 meses</CardDescription></CardHeader>
             <CardContent>
               {series.length === 0 ? <p className="text-[14px] text-muted-foreground">Sin datos.</p> : (
                 <div className="flex h-36 items-end gap-1.5">
@@ -129,7 +129,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
           </Card>
           {clientLoans.length > 0 && (
             <Card>
-              <CardHeader><CardTitle>Prestado por cobrar</CardTitle><CardDescription>Autorizado por {client.name}</CardDescription></CardHeader>
+              <CardHeader><CardTitle>Prestado a terceros con su permiso</CardTitle><CardDescription>Por recuperar</CardDescription></CardHeader>
               <CardContent>
                 <ul className="divide-y divide-border">
                   {clientLoans.map((l) => <li key={l.person_id} className="flex items-center justify-between py-2 text-[14px]"><span>{l.person?.name}</span><span className="font-semibold text-danger tabular">{formatMXN(l.loan_client_outstanding)}</span></li>)}

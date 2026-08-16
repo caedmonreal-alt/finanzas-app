@@ -11,7 +11,7 @@ export default async function ImportarPage() {
   const [projects, people, accounts, clients] = await Promise.all([getProjects(), getPeople(), getAccountBalances(), getClients()]);
   return (
     <>
-      <PageHeader title="Importar de Evernote" subtitle="Pega la nota tal cual: el mes en la primera línea, luego el día y debajo “cantidad concepto”" />
+      <PageHeader title="Capturar varias líneas" subtitle="Escribe o pega varias: el día en una línea y debajo “cantidad concepto”. Sirve para tus notas de Evernote o para vaciar el día de golpe." />
       <Importer projects={projects} people={people} accounts={accounts.filter((a) => a.type === "cash").map((a) => ({ id: a.account_id, name: a.name }))} clients={clients} />
     </>
   );

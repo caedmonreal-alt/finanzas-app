@@ -83,14 +83,14 @@ export default async function ProyectosPage() {
 
   return (
     <>
-      <PageHeader title="Proyectos" subtitle={`${active.length} obras en ejecución · gastado ${formatMXN(totalSpent)}${totalReceived ? ` de ${formatMXN(totalReceived)} recibidos` : ""}`}>
+      <PageHeader title="Clientes y obras" subtitle={`${active.length} obras en ejecución · gastado ${formatMXN(totalSpent)}${totalReceived ? ` de ${formatMXN(totalReceived)} recibidos` : ""}`}>
         <ClientForm clients={clients} />
         <ProjectForm clients={clients} />
       </PageHeader>
 
       {clients.length > 0 && (
         <>
-          <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">Fondo de clientes</h2>
+          <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">Clientes · su dinero</h2>
           <div className="mb-6 grid gap-3 lg:grid-cols-2">
             {clients.map((c) => {
               const b = clientBalances.find((x) => x.client_id === c.id);
@@ -102,21 +102,21 @@ export default async function ProyectosPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <Link href={`/clientes/${c.id}`} className="text-[16px] font-semibold hover:underline">{c.name} →</Link>
-                      <div className="text-[12px] text-muted-foreground">{projects.filter((p) => p.client_id === c.id).length} obras · ministraciones entran aquí y se aplican por obra</div>
+                      <div className="text-[12px] text-muted-foreground">{projects.filter((p) => p.client_id === c.id).length} obras · lo que me da entra aquí y se va gastando por obra</div>
                     </div>
                     <ClientForm clients={clients} client={c} />
                   </div>
                   {(() => { const obras = applied - noProj - fees; const rowsS: [string, number, string?][] = [
-                    ["Recibido (ministraciones)", received, "text-positive"],
-                    ["− Aplicado a obras", -obras],
-                    ...(noProj > 0 ? [["− Contratistas sin obra", -noProj] as [string, number]] : []),
-                    ...(fees > 0 ? [["− Mi pago", -fees] as [string, number]] : []),
-                    ...(pettyPending > 0 ? [["− Caja chica sin comprobar", -pettyPending] as [string, number]] : []),
-                    ...(loansOut > 0 ? [["− Prestado por cobrar (autorizado)", -loansOut] as [string, number]] : []),
+                    ["Me ha dado (ministraciones)", received, "text-positive"],
+                    ["− Gastado en sus obras", -obras],
+                    ...(noProj > 0 ? [["− Pagos a contratistas sin obra", -noProj] as [string, number]] : []),
+                    ...(fees > 0 ? [["− Mi pago (honorarios)", -fees] as [string, number]] : []),
+                    ...(pettyPending > 0 ? [["− Caja chica entregada, sin tickets aún", -pettyPending] as [string, number]] : []),
+                    ...(loansOut > 0 ? [["− Prestado a terceros con su permiso", -loansOut] as [string, number]] : []),
                   ]; return (
                     <ul className="mt-3 divide-y divide-border rounded-2xl bg-card-2 px-3">
                       {rowsS.map(([l, v, c]) => <li key={l} className="flex items-center justify-between py-1.5 text-[13.5px]"><span className="text-muted-foreground">{l}</span><span className={cn("font-medium tabular", c)}>{formatMXN(v)}</span></li>)}
-                      <li className="flex items-center justify-between py-2 text-[14.5px] font-semibold"><span>= Saldo del fondo</span><span className={cn("tabular", available >= 0 ? "text-positive" : "text-danger")}>{formatMXN(available)}{available < 0 && <span className="ml-1 text-[11.5px] font-normal">(puesto de tu bolsa)</span>}</span></li>
+                      <li className="flex items-center justify-between py-2 text-[14.5px] font-semibold"><span>= Le queda a {c.name}</span><span className={cn("tabular", available >= 0 ? "text-positive" : "text-danger")}>{formatMXN(available)}{available < 0 && <span className="ml-1 text-[11.5px] font-normal">(lo puse de mi bolsa)</span>}</span></li>
                     </ul>
                   ); })()}
                   {received > 0 && (

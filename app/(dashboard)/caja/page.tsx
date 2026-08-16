@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { MonthPicker } from "@/components/month-picker";
 import { QuickAddButton } from "@/components/quick-add/quick-add-button";
 import { PdfButton } from "@/components/reportes/pdf-button";
+import type React from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { MovementRow } from "@/components/caja/movement-row";
 import { projectColor } from "@/lib/project-colors";
@@ -77,8 +78,6 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
 
   const pending = balances.map((b) => ({ ...b, person: people.find((p) => p.id === b.person_id) })).filter((b) => b.petty_given - b.petty_proved > 0.005);
   const loans = balances.filter((b) => b.loan_outstanding > 0.005);
-  const totalPending = pending.reduce((s, b) => s + (b.petty_given - b.petty_proved), 0);
-  const totalLoans = loans.reduce((s, b) => s + b.loan_outstanding, 0);
   const lastCount = counts[0];
   const isCurrent = key === monthKey();
   const daysElapsed = isCurrent ? Number(todayISO().slice(-2)) : new Date(year, month, 0).getDate();
@@ -93,47 +92,71 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
         <QuickAddButton className="hidden sm:flex" label="Registrar" />
       </PageHeader>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card className="col-span-2 px-6 py-5">
-          <div className="text-[13px] font-medium text-muted-foreground">Efectivo en caja (teórico)</div>
-          <div className="mt-2 text-[32px] font-bold leading-none tracking-tight tabular sm:text-[38px] lg:text-[44px]">{formatMXN(closing)}</div>
-          <div className="mt-3 text-[12.5px] text-muted-foreground">
+      {/* Three answers: how much cash, what's left per client, what's pending */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="px-5 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-[13px] font-medium text-muted-foreground">¿Cuánto efectivo debo tener?</div>
+            <Link href="/arqueo" className="rounded-lg bg-accent-soft px-2.5 py-1 text-[12px] font-semibold text-accent">¿Cuadra? Contar →</Link>
+          </div>
+          <div className="mt-2 text-[32px] font-bold leading-none tracking-tight tabular sm:text-[38px] lg:text-[40px]">{formatMXN(closing)}</div>
+          <div className="mt-2.5 text-[12.5px] text-muted-foreground">
             Inicio {formatMXN(opening)} + entradas {formatMXN(tIn)} − salidas {formatMXN(tOut)}
             {lastCount && (
-              <>
-                {" "}· último arqueo {formatDate(lastCount.date)}{" "}
-                <span className={cn("rounded-md px-1.5 py-px text-[11px] font-semibold", lastCount.difference === 0 ? "bg-positive/15 text-positive" : "bg-danger/10 text-danger")}>
-                  {lastCount.difference === 0 ? "cuadró" : (lastCount.difference > 0 ? "+" : "") + formatMXN(lastCount.difference)}
-                </span>
+              <> · último conteo {formatDate(lastCount.date)}{" "}
+                <span className={cn("rounded-md px-1.5 py-px text-[11px] font-semibold", lastCount.difference === 0 ? "bg-positive/15 text-positive" : "bg-danger/10 text-danger")}>{lastCount.difference === 0 ? "cuadró" : (lastCount.difference > 0 ? "+" : "") + formatMXN(lastCount.difference)}</span>
               </>
             )}
           </div>
         </Card>
-        <Kpi label="Salidas del mes" value={formatMXN(tOut)} foot={`${rows.filter((r) => cashDelta(r) < 0).length} mov. · ${formatMXN(tOut / Math.max(daysElapsed, 1))} por día${compensation ? ` · netas de ${formatMXN(compensation)} de adelantos compensados` : ""}`} />
-        <Kpi label="Entradas del mes" value={formatMXN(tIn)} foot={`${rows.filter((r) => cashDelta(r) > 0 && !isCompensation(r)).length} movimientos${compensation ? " · sin contar compensaciones de mi pago" : ""}`} />
-        <Kpi label="Por comprobar" value={formatMXN(totalPending)} foot={pending.length ? `${pending.length} persona${pending.length > 1 ? "s" : ""} con caja chica` : "Nada pendiente"} href="/personas" />
-        <Kpi label="Préstamos por cobrar" value={formatMXN(totalLoans)} foot={loans.length ? `${loans.length} préstamo${loans.length > 1 ? "s" : ""} activos` : "Ninguno"} href="/prestamos" />
-        <Kpi label="Gasto de obras" value={formatMXN(projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "obra").reduce((s, p) => s + p.total, 0))} foot="Salidas del mes en obras" href="/proyectos" />
-        <Kpi label="Mi pago · pendiente de retirar" value={feePending === null ? formatMXN(curFee.fee - curFee.covered) : formatMXN(feePending)} foot={feePending === null ? "retirado este mes · captura el acordado en el cliente" : `acordado ${formatMXN(agreedFee)} · adelantos por descontar ${formatMXN(curFee.uncovered)}`} href="/mi-pago" />
-      </div>
-
-      {clients.length > 0 && (
-        <Card className="mt-4 px-6 py-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-[15px] font-semibold">¿De quién es el efectivo?</h2>
-            <span className="text-[12.5px] text-muted-foreground">El efectivo en caja no es igual al saldo de un cliente: junta varios fondos y descuenta tus adelantos.</span>
-          </div>
-          <ul className="mt-2 grid gap-x-8 gap-y-1 sm:grid-cols-2">
-            {clients.map((c) => (
-              <li key={c.id} className="flex items-center justify-between text-[13.5px]"><Link href={`/clientes/${c.id}`} className="text-muted-foreground hover:underline">Fondo de {c.name}</Link><span className={cn("font-medium tabular", fundOf(c.id) < 0 && "text-danger")}>{formatMXN(fundOf(c.id))}</span></li>
+        <Card className="px-5 py-4 sm:px-6 sm:py-5">
+          <div className="text-[13px] font-medium text-muted-foreground">¿Cuánto le queda a cada cliente?</div>
+          {clients.length === 0 ? <p className="mt-2 text-[14px] text-muted-foreground">Sin clientes.</p> : (
+            <ul className="mt-1.5 divide-y divide-border">
+              {clients.map((c) => (
+                <li key={c.id}>
+                  <Link href={`/clientes/${c.id}`} className="flex items-center justify-between py-2">
+                    <span className="text-[14.5px] font-medium">{c.name}</span>
+                    <span className={cn("text-[17px] font-bold tabular", fundOf(c.id) < 0 ? "text-danger" : "text-positive")}>{formatMXN(fundOf(c.id))}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(uncoveredDraws > 0 || Math.abs(closing - fundsTotal + uncoveredDraws) > 0.5) && (
+            <div className="mt-2 border-t border-border pt-2 text-[12px] text-muted-foreground">
+              {uncoveredDraws > 0 && <div className="flex justify-between"><Link href="/mi-pago" className="hover:underline">− Lo que ya tomé de mi pago (por descontar)</Link><span className="tabular text-warning">−{formatMXN(uncoveredDraws)}</span></div>}
+              <div className="flex justify-between"><span>Mío / otros</span><span className="tabular">{formatMXN(closing - fundsTotal + uncoveredDraws)}</span></div>
+              <div className="mt-1 flex justify-between font-semibold text-foreground"><span>= Efectivo en caja</span><span className="tabular">{formatMXN(closing)}</span></div>
+            </div>
+          )}
+        </Card>
+        <Card className="px-5 py-4 sm:px-6 sm:py-5">
+          <div className="text-[13px] font-medium text-muted-foreground">¿Qué tengo pendiente?</div>
+          <ul className="mt-1.5 divide-y divide-border">
+            {pending.map((b) => (
+              <li key={b.person_id}><Link href="/personas" className="flex items-center justify-between py-2"><span className="text-[14px]"><b>{b.person?.name ?? "—"}</b> debe comprobar</span><span className="text-[14.5px] font-semibold tabular text-warning">{formatMXN(b.petty_given - b.petty_proved)}</span></Link></li>
             ))}
-            {uncoveredDraws > 0 && <li className="flex items-center justify-between text-[13.5px]"><Link href="/mi-pago" className="text-muted-foreground hover:underline">− Adelantos de mi pago sin descontar</Link><span className="font-medium tabular text-warning">−{formatMXN(uncoveredDraws)}</span></li>}
-            <li className="flex items-center justify-between text-[13.5px]"><span className="text-muted-foreground">Tuyo / otros (resto)</span><span className="font-medium tabular">{formatMXN(closing - fundsTotal + uncoveredDraws)}</span></li>
-            <li className="flex items-center justify-between border-t border-border pt-1 text-[14px] font-semibold sm:col-span-2"><span>= Efectivo en caja</span><span className="tabular">{formatMXN(closing)}</span></li>
+            {loans.map((b) => (
+              <li key={b.person_id}><Link href="/prestamos" className="flex items-center justify-between py-2"><span className="text-[14px]"><b>{people.find((p) => p.id === b.person_id)?.name ?? "—"}</b> me debe (préstamo)</span><span className="text-[14.5px] font-semibold tabular text-danger">{formatMXN(b.loan_outstanding)}</span></Link></li>
+            ))}
+            {feePending !== null && feePending > 0 && (
+              <li><Link href="/mi-pago" className="flex items-center justify-between py-2"><span className="text-[14px]">Mi pago por retirar este mes</span><span className="text-[14.5px] font-semibold tabular text-accent">{formatMXN(feePending)}</span></Link></li>
+            )}
+            {pending.length === 0 && loans.length === 0 && !(feePending && feePending > 0) && <li className="py-3 text-[14px] text-muted-foreground">Nada pendiente. 👍🏻</li>}
           </ul>
         </Card>
-      )}
+      </div>
+
+      <details className="mt-3 rounded-2xl bg-card px-5 py-3 shadow-card">
+        <summary className="cursor-pointer text-[13.5px] font-medium text-muted-foreground">Más indicadores del mes</summary>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Kpi label="Salidas del mes" value={formatMXN(tOut)} foot={`${rows.filter((r) => cashDelta(r) < 0).length} mov. · ${formatMXN(tOut / Math.max(daysElapsed, 1))} por día${compensation ? ` · sin contar ${formatMXN(compensation)} ya tomados de mi pago` : ""}`} />
+          <Kpi label="Entradas del mes" value={formatMXN(tIn)} foot={`${rows.filter((r) => cashDelta(r) > 0 && !isCompensation(r)).length} movimientos`} />
+          <Kpi label="Gasto de obras" value={formatMXN(projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "obra").reduce((s, p) => s + p.total, 0))} foot="salidas del mes en obras" href="/proyectos" />
+          <Kpi label="Gasto personal" value={formatMXN(projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "personal").reduce((s, p) => s + p.total, 0))} foot={tOut ? `${((projRows.filter((p) => projects.find((x) => x.name === p.name)?.kind === "personal").reduce((s, p) => s + p.total, 0) / tOut) * 100).toFixed(0)} % de las salidas` : "—"} href="/dashboard" />
+        </div>
+      </details>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-start">
         {/* Ledger */}
@@ -166,10 +189,39 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
                         {dOut ? `−${formatMXN(dOut)}` : ""}
                       </span>
                     </div>
-                    {list.map((r) => {
-                      running += cashDelta(r);
-                      return <MovementRow key={r.id} row={r} running={running} />;
-                    })}
+                    {(() => {
+                      // group split lines (mi pago, gasolina) as one expandable row
+                      const out: React.ReactNode[] = [];
+                      const seen = new Set<string>();
+                      list.forEach((r) => {
+                        if (r.split_group && r.amount < 0) {
+                          if (seen.has(r.split_group)) return;
+                          seen.add(r.split_group);
+                          const members = list.filter((x) => x.split_group === r.split_group && x.amount < 0);
+                          const total = members.reduce((a, x) => a + cashDelta(x), 0);
+                          const startBal = running;
+                          members.forEach((x) => { running += cashDelta(x); });
+                          const label = (r.note ?? "Reparto").replace(/\s*·\s*parte proporcional.*$/i, "");
+                          out.push(
+                            <details key={r.split_group} className="group">
+                              <summary className="-mx-2 grid cursor-pointer list-none grid-cols-[32px_88px_1fr] items-center gap-2 rounded-xl px-2 py-2 hover:bg-card-2/70 sm:grid-cols-[36px_112px_1fr_96px] sm:gap-3">
+                                <span className="grid h-8 w-8 place-items-center rounded-lg bg-card-2 text-[15px] sm:h-9 sm:w-9">{r.is_fee ? "💼" : "⛽"}</span>
+                                <span className="text-right text-[14px] font-semibold tabular sm:text-[15px]">{formatMXN(total)}</span>
+                                <span className="min-w-0"><span className="block truncate text-[14.5px]">{label}</span><span className="block text-[12px] text-muted-foreground">{r.is_fee ? "Mi pago" : "Gasto compartido"} · repartido en {members.length} obras <span className="text-accent">▸ ver</span></span></span>
+                                <span className="hidden text-right text-[12.5px] text-muted-foreground tabular sm:block">{formatMXN(startBal + total)}</span>
+                              </summary>
+                              <div className="ml-6 border-l border-border pl-2">
+                                {members.map((x) => <MovementRow key={x.id} row={x} />)}
+                              </div>
+                            </details>
+                          );
+                          return;
+                        }
+                        running += cashDelta(r);
+                        out.push(<MovementRow key={r.id} row={r} running={running} />);
+                      });
+                      return out;
+                    })()}
                   </section>
                 );
               })

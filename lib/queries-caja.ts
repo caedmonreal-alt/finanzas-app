@@ -324,3 +324,16 @@ export async function getUncoveredDrawsTotal(): Promise<number> {
   if (error) throw error;
   return (data ?? []).reduce((s, r) => s + num(r.uncovered), 0);
 }
+
+/** Concepts you register often (last 60 days) that don't appear in the last 7 days — hints for a cash shortfall. */
+export async function getMissingUsualConcepts(): Promise<string[]> {
+  const supabase = createClient();
+  const d60 = new Date(); d60.setDate(d60.getDate() - 60);
+  const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const { data } = await supabase.from("transactions").select("note, date").lt("amount", 0).gte("date", iso(d60)).not("note", "is", null).limit(2000);
+  const norm = (n: string) => n.toLowerCase().replace(/\s*·.*$/, "").replace(/\d+/g, "").trim().split(" ").slice(0, 2).join(" ");
+  const counts = new Map<string, number>(); const recent = new Set<string>();
+  (data ?? []).forEach((r) => { const k = norm(r.note ?? ""); if (!k) return; counts.set(k, (counts.get(k) ?? 0) + 1); if (r.date >= iso(d7)) recent.add(k); });
+  return Array.from(counts.entries()).filter(([k, c]) => c >= 3 && !recent.has(k)).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+}

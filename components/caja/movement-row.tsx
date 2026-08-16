@@ -12,7 +12,7 @@ export function MovementRow({ row, running, showProject = true, showDate = false
   const isIn = row.amount > 0;
   const isTransfer = !!row.transfer_account_id || row.movement_type === "transferencia";
   const isCompensation = !!row.split_group && row.amount > 0;
-  const typeLabel = row.is_fee ? "Mi pago" : isCompensation ? "↩ compensa adelantos ya tomados (no es dinero que entró)" : row.covered_by_fee ? "adelanto de mi pago (ya descontado)" : row.split_group ? "Repartido" : row.movement_type !== "gasto" ? MOVEMENT_TYPE_LABEL[row.movement_type as MovementType] : null;
+  const typeLabel = row.is_fee ? "Mi pago" : isCompensation ? "↩ ya lo había tomado de mi pago (no entra dinero)" : row.covered_by_fee ? "tomado de mi pago (ya descontado)" : row.split_group ? "Repartido" : row.movement_type !== "gasto" ? MOVEMENT_TYPE_LABEL[row.movement_type as MovementType] : null;
   return (
     <button
       onClick={() =>

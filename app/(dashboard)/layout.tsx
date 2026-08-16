@@ -5,6 +5,7 @@ import { getAccountBalances, getCategories } from "@/lib/queries";
 import { getProjects, getPeople, getClients } from "@/lib/queries-caja";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TabBar } from "@/components/layout/tabbar";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { QuickAddProvider } from "@/components/quick-add/quick-add-context";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       />
       <div className="lg:grid lg:grid-cols-[220px_1fr] min-h-dvh">
         <Sidebar email={user.email ?? ""} />
-        <main className="mx-auto w-full max-w-[1240px] px-4 pt-6 pb-28 lg:px-8 lg:pt-7 lg:pb-16">{children}</main>
+        <main className="mx-auto w-full max-w-[1240px] px-4 pt-5 pb-28 lg:px-8 lg:pt-7 lg:pb-16"><SectionTabs />{children}</main>
       </div>
       <TabBar />
     </QuickAddProvider>

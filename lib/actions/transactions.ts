@@ -333,3 +333,50 @@ export async function createSharedExpenseSplit(input: { amount: number; basis: F
   revalidateAll();
   return { count: rows.length };
 }
+
+/* ---------- Smart suggestions from history (learns from what you already captured) ---------- */
+export interface Suggestion {
+  project_id: string | null;
+  movement_type: MovementType;
+  person_name: string | null;
+  category_id: string | null;
+  shared: boolean; // was a shared split (gasolina)
+  matches: number;
+}
+/** Looks at recent movements whose concept matches (prefix/contains, case-insensitive) and returns the most common combo. */
+export async function suggestFromNote(note: string): Promise<Suggestion | null> {
+  const n = note.trim().toLowerCase();
+  if (n.length < 3) return null;
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("transactions")
+    .select("note, project_id, movement_type, category_id, split_group, is_fee, amount, person:people(name)")
+    .ilike("note", `%${n.replace(/[%_]/g, "")}%`)
+    .lt("amount", 0)
+    .order("date", { ascending: false })
+    .limit(40);
+  const rows = (data ?? []).filter((r) => !r.is_fee);
+  if (!rows.length) return null;
+  const key = (r: (typeof rows)[number]) => `${r.split_group && !r.project_id ? "S" : r.project_id ?? "-"}|${r.movement_type}|${(Array.isArray(r.person) ? r.person[0]?.name : (r.person as { name: string } | null)?.name) ?? ""}|${r.category_id ?? ""}`;
+  const counts = new Map<string, number>();
+  rows.forEach((r) => counts.set(key(r), (counts.get(key(r)) ?? 0) + 1));
+  // shared splits create N rows per event; detect by split_group repetition
+  const sharedGroups = new Set(rows.filter((r) => r.split_group && !r.is_fee).map((r) => r.split_group));
+  const sharedRows = rows.filter((r) => r.split_group && !r.is_fee).length;
+  if (sharedGroups.size > 0 && sharedRows >= rows.length * 0.6) {
+    return { project_id: null, movement_type: "gasto", person_name: null, category_id: null, shared: true, matches: sharedGroups.size };
+  }
+  const best = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
+  const [pid, type, person, cat] = best[0].split("|");
+  return { project_id: pid === "-" || pid === "S" ? null : pid, movement_type: type as MovementType, person_name: person || null, category_id: cat || null, shared: false, matches: best[1] };
+}
+
+/** Most used projects (last 90 days), for the compact chip row. */
+export async function mostUsedProjects(limit = 5): Promise<string[]> {
+  const supabase = createClient();
+  const from = new Date(); from.setDate(from.getDate() - 90);
+  const { data } = await supabase.from("transactions").select("project_id").gte("date", from.toISOString().slice(0, 10)).not("project_id", "is", null).limit(1000);
+  const counts = new Map<string, number>();
+  (data ?? []).forEach((r) => counts.set(r.project_id!, (counts.get(r.project_id!) ?? 0) + 1));
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
+}

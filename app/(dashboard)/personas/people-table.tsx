@@ -70,7 +70,35 @@ export function PeopleTable({ rows, projects }: { rows: Row[]; projects: Project
       {sorted.length === 0 ? (
         <p className="py-6 text-center text-[14px] text-muted-foreground">Aún no hay personas. Se crean solas al registrar caja chica, pagos o préstamos.</p>
       ) : (
-        <div className="overflow-x-auto -mx-2 px-2">
+        <>
+        {/* Mobile: cards */}
+        <ul className="sm:hidden divide-y divide-border">
+          {sorted.map((r) => {
+            const pend = r.petty_given - r.petty_proved;
+            return (
+              <li key={r.person.id} className="py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <button onClick={() => openEdit(r)} className="min-w-0 text-left">
+                    <div className="truncate text-[15px] font-semibold">{r.person.name}</div>
+                    <div className="text-[12px] text-muted-foreground">{r.person.role ?? ""}{r.last ? `${r.person.role ? " · " : ""}último ${formatDate(r.last)}` : ""}</div>
+                  </button>
+                  {pend > 0.005 ? <span className="shrink-0 rounded-md bg-warning/15 px-2 py-0.5 text-[14px] font-semibold text-warning tabular">{formatMXN(pend)}</span> : r.petty_given ? <span className="shrink-0 rounded-md bg-positive/15 px-2 py-0.5 text-[12px] font-semibold text-positive">al corriente</span> : null}
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[12.5px] text-muted-foreground">
+                  {r.petty_given > 0 && <span>Entregado <b className="text-foreground tabular">{formatMXN(r.petty_given)}</b></span>}
+                  {r.petty_proved > 0 && <span>Comprobado <b className="text-foreground tabular">{formatMXN(r.petty_proved)}</b></span>}
+                  {r.payments > 0 && <span>Pagos <b className="text-foreground tabular">{formatMXN(r.payments)}</b></span>}
+                  {r.loan > 0.005 && <span>Me debe <b className="text-danger tabular">{formatMXN(r.loan)}</b></span>}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <button onClick={() => openProof(r)} className="rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-white">Comprobar</button>
+                  <button onClick={() => openNew("expense")} className="rounded-lg bg-card-2 px-3 py-1.5 text-[13px] font-semibold">+ Entregar</button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="hidden sm:block overflow-x-auto -mx-2 px-2">
           <table className="w-full text-[13.5px]">
             <thead>
               <tr className="text-left text-[12px] text-muted-foreground">
@@ -111,6 +139,7 @@ export function PeopleTable({ rows, projects }: { rows: Row[]; projects: Project
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Proof sheet */}

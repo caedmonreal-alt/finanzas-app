@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 
 const DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
 
-export function CashCountForm({ expected, cashAccounts }: { expected: number; cashAccounts: { id: string; name: string; balance: number }[] }) {
+export function CashCountForm({ expected, cashAccounts, hints = [] }: { expected: number; cashAccounts: { id: string; name: string; balance: number }[]; hints?: string[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [counted, setCounted] = useState("");
@@ -50,6 +50,7 @@ export function CashCountForm({ expected, cashAccounts }: { expected: number; ca
         <div className={cn("rounded-2xl px-4 py-3 text-[14px] font-semibold", diff === 0 ? "bg-positive/15 text-positive" : diff < 0 ? "bg-danger/10 text-danger" : "bg-warning/15 text-warning")}>
           {diff === 0 ? "✓ Cuadra exacto" : diff < 0 ? `Faltan ${formatMXN(-diff)}` : `Sobran ${formatMXN(diff)}`}
           {diff !== 0 && <span className="ml-2 font-normal text-muted-foreground">Revisa movimientos sin capturar antes de ajustar.</span>}
+          {diff < 0 && hints.length > 0 && <div className="mt-1.5 text-[13px] font-normal text-muted-foreground">Sueles registrar y esta semana no aparecen: <b className="text-foreground">{hints.join(", ")}</b>. ¿Se te fue alguno?</div>}
         </div>
       )}
       <details className="rounded-2xl bg-card-2 px-4 py-3">
