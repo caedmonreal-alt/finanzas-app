@@ -16,7 +16,7 @@ const RULES: [RegExp, string][] = [
   [/vidrio|cancel|ventana|cristal/i, "🪟"],
   [/cantera|piedra|m[aá]rmol/i, "🪨"],
   [/material\b/i, "🧰"],
-  [/n[oó]mina|raya|sueldo|salario|semana/i, "👷"],
+  [/n[oó]mina|raya|sueldo|salario|semana/i, "👷🏻"],
   [/flete|renta de|maquinaria|retro|grúa|grua|camión|camion/i, "🚚"],
   [/telcel|telmex|internet|celular|tel[eé]fono/i, "📱"],
   [/gas\b|gas rancho|butano|lp\b/i, "🔥"],
@@ -37,7 +37,7 @@ const RULES: [RegExp, string][] = [
   [/banco|comisi[oó]n|transferencia|retiro|cajero/i, "🏦"],
 ];
 const BY_TYPE: Record<string, string> = {
-  caja_chica: "👜", pago: "👷", prestamo: "🤝", cobro_prestamo: "🤝", ministracion: "💵", venta: "🐂", aportacion: "🏦", otro_ingreso: "➕", transferencia: "⇄", ajuste: "⚖️", gasto: "•",
+  caja_chica: "👜", pago: "👷🏻", prestamo: "🤝", cobro_prestamo: "🤝", ministracion: "💵", venta: "🐂", aportacion: "🏦", otro_ingreso: "➕", transferencia: "⇄", ajuste: "⚖️", gasto: "•",
 };
 export function iconFor(note: string | null | undefined, movementType?: string | null, categoryIcon?: string | null, isFee?: boolean): string {
   if (categoryIcon) return categoryIcon;
