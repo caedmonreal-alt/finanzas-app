@@ -10,6 +10,7 @@ import { MovementRow } from "@/components/caja/movement-row";
 import { projectColor } from "@/lib/project-colors";
 import { ClientForm } from "../../proyectos/client-form";
 import { AssignProjects } from "./assign-projects";
+import { PdfButton } from "@/components/reportes/pdf-button";
 
 export const metadata: Metadata = { title: "Cliente" };
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export default async function ClientePage({ params }: { params: { id: string } }
     <>
       <PageHeader title={client.name} subtitle={`${mine.length} obras · ${ministraciones.length} ministraciones`}>
         <Link href="/proyectos" className="text-[14px] font-medium text-accent hover:underline">← Proyectos</Link>
+        <PdfButton href={`/api/reportes/cliente?id=${client.id}`} label="Estado de cuenta PDF" />
         <ClientForm clients={clients} client={client} />
       </PageHeader>
 

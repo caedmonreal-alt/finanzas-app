@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { MovementRow } from "@/components/caja/movement-row";
 import { projectColor } from "@/lib/project-colors";
 import { ProjectForm } from "../project-form";
+import { PdfButton } from "@/components/reportes/pdf-button";
 
 export const metadata: Metadata = { title: "Proyecto" };
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ export default async function ProyectoPage({ params }: { params: { id: string } 
         subtitle={`${project.kind === "obra" ? PROJECT_STATUS_LABEL[project.status] : PROJECT_KIND_LABEL[project.kind]}${project.client_name ? ` · ${project.client_name}` : ""}`}
       >
         <Link href="/proyectos" className="text-[14px] font-medium text-accent hover:underline">← Proyectos</Link>
+        <PdfButton href={`/api/reportes/proyecto?id=${project.id}`} />
         <ProjectForm project={project} clients={clients} />
       </PageHeader>
 

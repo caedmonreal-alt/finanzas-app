@@ -7,6 +7,7 @@ import { cn, formatMXN, formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { MonthPicker } from "@/components/month-picker";
 import { QuickAddButton } from "@/components/quick-add/quick-add-button";
+import { PdfButton } from "@/components/reportes/pdf-button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { MovementRow } from "@/components/caja/movement-row";
 import { projectColor } from "@/lib/project-colors";
@@ -81,6 +82,7 @@ export default async function CajaPage({ searchParams }: { searchParams: { mes?:
         <Suspense>
           <MonthPicker value={key} />
         </Suspense>
+        <PdfButton href={`/api/reportes/caja?mes=${key}`} />
         <QuickAddButton className="hidden sm:flex" label="Registrar" />
       </PageHeader>
 
