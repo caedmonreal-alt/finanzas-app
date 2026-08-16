@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient, getClients, getClientBalances, getProjects, getProjectTotals, getClientLedger, getMonthlyClientReceived, getMonthlySpendForProjects, getPersonBalances, getPeople } from "@/lib/queries-caja";
-import { formatMXN, formatDate, cn } from "@/lib/utils";
+import { formatMXN, cn } from "@/lib/utils";
 import { PROJECT_STATUS_LABEL } from "@/lib/types";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { MovementRow } from "@/components/caja/movement-row";
 import { projectColor } from "@/lib/project-colors";
 import { ClientForm } from "../../proyectos/client-form";
 import { AssignProjects } from "./assign-projects";
+import { MinistracionButton } from "./ministracion-button";
 import { PdfButton } from "@/components/reportes/pdf-button";
 
 export const metadata: Metadata = { title: "Cliente" };
@@ -118,13 +119,12 @@ export default async function ClientePage({ params }: { params: { id: string } }
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Ministraciones</CardTitle><CardDescription>{formatMXN(rec)} en total</CardDescription></CardHeader>
+            <CardHeader>
+              <div><CardTitle>Ministraciones</CardTitle><CardDescription>{formatMXN(rec)} en total · toca una para editarla</CardDescription></div>
+              <MinistracionButton clientId={client.id} clientName={client.name} />
+            </CardHeader>
             <CardContent>
-              {ministraciones.length === 0 ? <p className="text-[14px] text-muted-foreground">Ninguna registrada. Regístrala como Entrada → Ministración → {client.name}.</p> : (
-                <ul className="divide-y divide-border">
-                  {ministraciones.map((r) => <li key={r.id} className="flex items-center justify-between py-2 text-[14px]"><span>{formatDate(r.date)} <span className="text-muted-foreground">· {r.note ?? "Ministración"}</span></span><span className="font-semibold text-positive tabular">+{formatMXN(r.amount)}</span></li>)}
-                </ul>
-              )}
+              {ministraciones.length === 0 ? <p className="text-[14px] text-muted-foreground">Ninguna registrada todavía.</p> : ministraciones.map((r) => <MovementRow key={r.id} row={r} showProject={false} showDate />)}
             </CardContent>
           </Card>
           {clientLoans.length > 0 && (

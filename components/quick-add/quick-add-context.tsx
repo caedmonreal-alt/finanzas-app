@@ -3,10 +3,10 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { Category, Project, Person, Client } from "@/lib/types";
 import type { AccountBalance } from "@/lib/queries";
-import { QuickAddSheet, type EditableTransaction } from "./quick-add-sheet";
+import { QuickAddSheet, type EditableTransaction, type QuickAddPreset } from "./quick-add-sheet";
 
 interface QuickAddApi {
-  openNew: (kind?: "expense" | "income") => void;
+  openNew: (kind?: "expense" | "income", preset?: QuickAddPreset) => void;
   openEdit: (tx: EditableTransaction) => void;
 }
 
@@ -33,14 +33,15 @@ export function QuickAddProvider({
   clients: Client[];
   children: React.ReactNode;
 }) {
-  const [state, setState] = useState<{ open: boolean; kind: "expense" | "income"; edit: EditableTransaction | null }>({
+  const [state, setState] = useState<{ open: boolean; kind: "expense" | "income"; edit: EditableTransaction | null; preset: QuickAddPreset | null }>({
     open: false,
     kind: "expense",
     edit: null,
+    preset: null,
   });
 
-  const openNew = useCallback((kind: "expense" | "income" = "expense") => setState({ open: true, kind, edit: null }), []);
-  const openEdit = useCallback((tx: EditableTransaction) => setState({ open: true, kind: tx.amount < 0 ? "expense" : "income", edit: tx }), []);
+  const openNew = useCallback((kind: "expense" | "income" = "expense", preset: QuickAddPreset | null = null) => setState({ open: true, kind, edit: null, preset }), []);
+  const openEdit = useCallback((tx: EditableTransaction) => setState({ open: true, kind: tx.amount < 0 ? "expense" : "income", edit: tx, preset: null }), []);
   const close = useCallback(() => setState((s) => ({ ...s, open: false })), []);
 
   // Keyboard shortcut: "n" opens a new expense (desktop convenience)
@@ -63,6 +64,7 @@ export function QuickAddProvider({
         open={state.open}
         initialKind={state.kind}
         edit={state.edit}
+        preset={state.preset}
         categories={categories}
         accounts={accounts}
         projects={projects}

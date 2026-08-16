@@ -27,10 +27,13 @@ export interface EditableTransaction {
   is_recurring: boolean;
 }
 
+export interface QuickAddPreset { movement_type?: MovementType; client_id?: string | null; project_id?: string | null; note?: string }
+
 interface Props {
   open: boolean;
   initialKind: "expense" | "income";
   edit: EditableTransaction | null;
+  preset?: QuickAddPreset | null;
   categories: Category[];
   accounts: AccountBalance[];
   projects: Project[];
@@ -45,7 +48,7 @@ const SPENDING_ACCOUNT_TYPES = ["cash", "debit", "credit"];
  * Registro rápido: Salida/Entrada → monto → concepto → proyecto → tipo (→ persona) → Listo.
  * Categoría solo se pide cuando el proyecto es Personal (alimenta el tablero personal).
  */
-export function QuickAddSheet({ open, initialKind, edit, categories, accounts, projects, people, clients, onClose }: Props) {
+export function QuickAddSheet({ open, initialKind, edit, preset, categories, accounts, projects, people, clients, onClose }: Props) {
   const router = useRouter();
   const [dir, setDir] = useState<"out" | "in">(initialKind === "income" ? "in" : "out");
   const [amount, setAmount] = useState("");
@@ -135,6 +138,12 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
       setDate(todayISO());
       setRecurring(false);
       setMore(false);
+      if (preset) {
+        if (preset.movement_type) { setType(preset.movement_type); userTouched.current.type = true; }
+        if (preset.client_id !== undefined) setClientId(preset.client_id);
+        if (preset.project_id !== undefined) { setProjectId(preset.project_id); userTouched.current.project = true; }
+        if (preset.note) setNote(preset.note);
+      }
     }
     setError(null);
     if (!edit) setShowTypes(false); else setShowTypes(true);
@@ -142,7 +151,7 @@ export function QuickAddSheet({ open, initialKind, edit, categories, accounts, p
     const t = setTimeout(() => amountRef.current?.focus(), 60);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, edit, initialKind]);
+  }, [open, edit, initialKind, preset]);
 
   // Learn from history: when the concept matches previous movements, propose project / type / person
   useEffect(() => {
